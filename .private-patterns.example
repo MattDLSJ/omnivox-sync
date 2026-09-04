@@ -1,0 +1,32 @@
+# Things about YOU that must never appear in a file this repo ships.
+#
+# This file is the example. Copy it to .private-patterns, which is gitignored,
+# and put your real values there. `make check-private` reads them and fails if
+# any of them turns up in a tracked file, a staged change, or (with --history)
+# a commit message.
+#
+# You do not need to list credentials: every value in .env is picked up
+# automatically, and so are the personal leaves of your config.yaml (teachers,
+# rooms, SSID, IP prefix, campus coordinates, notebook and folder names) and
+# your git commit e-mail.
+#
+# What belongs here is everything else that identifies you or somebody near
+# you. One entry per line. A line wrapped in slashes is a regular expression,
+# matched case-insensitively; anything else is a plain substring.
+#
+#   Your legal name, and any short form of it you actually use
+#   Your e-mail addresses, including the ones not in .env
+#   Your macOS short username, and the name your Mac broadcasts on a network
+#   Your student number, employee number, or any other file number
+#   The name of anyone whose device pairs with yours: a partner, a housemate
+#   Your home Wi-Fi name, and the coordinates of anywhere you sleep
+#   A bundle identifier or URL scheme built out of your own name
+#
+# Example entries, all fictional:
+#
+#   Jordan Tremblay
+#   jtremblay
+#   jordan.tremblay@example.com
+#   /\b1234567\b/
+#   Jordans-MacBook
+#   /45\.51[0-9]{2}/

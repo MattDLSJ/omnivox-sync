@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.school.manual</string>
+
+    <!-- The button. Deliberately has NO StartCalendarInterval and NO
+         StartInterval: it sits dormant until something runs
+
+             launchctl kickstart gui/$(id -u)/com.school.manual
+
+         Going through launchd rather than running the command directly buys
+         three things a plain script would not have. launchd refuses to start a
+         second instance of a label that is already running, so a double-click
+         is free of charge. The job inherits the same execution identity and
+         permissions as the three jobs that already run daily, so no new
+         approval prompt. And the exit status is recorded, so
+         `launchctl print` can say how the last press went. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>__PYTHON__</string>
+        <string>-m</string>
+        <string>src.omnivox_sync</string>
+        <string>--manual</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__REPO__</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>PYTHONPATH</key>
+        <string>__REPO__</string>
+    </dict>
+
+    <!-- Its own log files, so a hand press never muddies the scheduled job's. -->
+    <key>StandardOutPath</key>
+    <string>__REPO__/logs/manual.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>__REPO__/logs/manual.err.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

@@ -1,0 +1,33 @@
+.env
+
+# Your config.yaml is YOUR timetable: courses, teachers, rooms, group numbers,
+# the campus coordinates you gate recording on, and the path to your own
+# folders. It is personal data, not source. config.example.yaml is the tracked
+# template; copy it and edit the copy.
+config.yaml
+
+# Your own list of things that must never be committed. The .example next to
+# it is the tracked template; this one holds the real values.
+.private-patterns
+
+# Where `make public-snapshot` builds the shareable copy.
+build/
+
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.pytest_cache/
+# Rendered plists carry an absolute /Users/<name> path, so they are per-machine
+# build output, not source. Only the templates belong in the repo.
+launchd/*.plist
+!launchd/*.plist.template
+
+# Keep the dirs, ignore their contents.
+state/*
+logs/*
+!state/.gitkeep
+!logs/.gitkeep
+
+# a separate project of yours that happens to live in this folder
+horaires-cegep/

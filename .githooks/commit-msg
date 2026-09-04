@@ -1,0 +1,22 @@
+#!/bin/sh
+# Refuse a commit MESSAGE that names something personal.
+#
+# This is not belt-and-braces. In this repo the message has been the actual
+# leak: the history carries a commit saying which class its author skipped, on
+# what date, and how far from campus he was. A message cannot be edited after
+# the fact, and rewriting one changes every SHA downstream, so the only cheap
+# moment to catch it is now.
+#
+# It catches KNOWN VALUES: your name, your address, a coordinate, a teacher.
+# It cannot catch a sentence that discloses something about you without naming
+# any of them. "skipped Psycho today, 720 m from campus" contains no needle
+# and goes straight through. Nothing automatic will ever catch that. Write
+# commit messages about the CODE, not about the day you had.
+
+if [ -x .venv/bin/python ]; then
+    PY=.venv/bin/python
+else
+    PY=python3
+fi
+
+exec "$PY" scripts/check_private.py --message-file "$1"

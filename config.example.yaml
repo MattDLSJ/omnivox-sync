@@ -1,0 +1,78 @@
+semester: "Automne 2026"
+
+# NOTE: existing folders on this Mac use English season names
+# ("Cegep Fall 2025", "Cegep Winter 2026", "Cegep Summer 2026").
+# The spec specifies "Cegep Automne 2026". The fall folder does not exist yet,
+# so either works — omnivox_sync creates it. Change this one line if you
+# prefer to match the existing English convention.
+base_path: "~/Documents/School/Cegep Automne 2026"
+
+# Filled by: .venv/bin/python -m src.omnivox_sync --discover
+courses: []
+
+# Filled once the timetable is published (Milestone 4). M4 is inert while empty.
+schedule: []
+
+notify:
+  macos: true
+  # Phone push goes through ntfy.sh. The topic name is the only thing guarding
+  # it, so it lives in .env as NTFY_TOPIC and this stays empty. Empty in both
+  # places = Mac notifications only.
+  ntfy_topic: ""
+
+digest:
+  ranking: "rules"      # "rules" | "gemini"
+  folder: "Other"       # subfolder for _digest.md; "" puts it at the top level
+
+# Cosmetic Finder presentation, applied to each course folder as it is created.
+# Each course may carry an "icon:" -- an emoji, or "sym:<sf-symbol>".
+finder:
+  tag: "School"
+  color: "green"        # none|gray|green|purple|blue|yellow|red|orange
+
+notebooklm:
+  mode: "auto"          # "auto" | "staging"
+
+at_school_check: "off"  # "off" | "ip" | "ssid"
+school_ip_prefix: ""
+school_ssid: ""         # Wi-Fi name that means "on campus"; used when at_school_check = "ssid"
+
+# GPS gate for the recorder: it only records when the Mac is inside this circle.
+# Leave lat/lon at 0 to disable it and record wherever you are.
+school_location:
+  lat: 0.0
+  lon: 0.0
+  radius_m: 400
+
+# --------------------------------------------------------------------------
+# Recording and transcription (M4). All of this is inert while schedule: is [].
+# --------------------------------------------------------------------------
+
+# Where audio and transcripts land. Relative (like this) = a subfolder inside
+# EACH course folder, so a class's recordings sit next to that class's slides.
+# Absolute, or starting with ~ = one root of its own, courses nested under it.
+recordings_folder: "2_Voice"
+
+# Same rule, for pages pulled out of the i+ Interactif digital textbooks.
+books_folder: "3_Livres"
+
+# Substring of the input device name, as shown in System Settings > Sound.
+# Empty = the system default input.
+microphone: ""
+
+transcribe: true              # run whisper.cpp on each finished recording
+transcribe_language: "auto"   # "auto" | a single code like "fr"
+transcribe_languages: ["fr", "en"]  # the languages "auto" is allowed to pick
+transcribe_timestamps: true   # keep [mm:ss] marks in the transcript
+whisper_model: ""             # path to a ggml model; empty = large-v3-turbo
+live_transcribe: true         # transcribe each minute as it is captured
+whisper_vad: true             # skip silence with Silero VAD (make fetch-vad)
+whisper_vad_model: ""         # path to the VAD model; empty = the fetched one
+upload_transcript: true       # send the .md transcript to NotebookLM too
+
+# --------------------------------------------------------------------------
+# Term dates. The recorder stays quiet outside them and on days off.
+# --------------------------------------------------------------------------
+semester_start: "2026-08-24"
+semester_end: "2026-12-09"
+no_class_days: []

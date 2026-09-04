@@ -1,0 +1,14 @@
+#!/bin/sh
+# Refuse a commit that carries something personal into the repo.
+#
+# Enabled by `make install-hooks`, which points core.hooksPath here. Skip it
+# once with `git commit --no-verify`, which you should only need when you are
+# deliberately adding an exception to .private-patterns.
+
+if [ -x .venv/bin/python ]; then
+    PY=.venv/bin/python
+else
+    PY=python3
+fi
+
+exec "$PY" scripts/check_private.py --staged
