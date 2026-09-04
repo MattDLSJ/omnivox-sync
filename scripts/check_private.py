@@ -397,6 +397,12 @@ def main(argv: list[str] | None = None) -> int:
         "--history", action="store_true", help="also scan commit messages and authors"
     )
     parser.add_argument(
+        "--certify",
+        action="store_true",
+        help="this answer gates a publication, so a half-armed guard is a "
+        "failure rather than a warning",
+    )
+    parser.add_argument(
         "--message-file",
         help="scan one commit message being written, which is what commit-msg runs",
     )
@@ -467,11 +473,12 @@ def main(argv: list[str] | None = None) -> int:
                 ".private-patterns, from the .example beside it.",
                 file=sys.stderr,
             )
-            if not args.staged and not args.message_file:
-                # This path is what `make publish` verifies a release with.
-                # Half-armed is not good enough to publish behind.
+            if args.certify:
+                # Only a publication is blocked by this. Failing every manual
+                # run and every commit instead would just teach people to pass
+                # --no-verify, and a guard nobody runs guards nothing.
                 raise CannotCheck(
-                    "refusing to certify a tree while .private-patterns is "
+                    "refusing to certify a release while .private-patterns is "
                     "missing. Restore it, then run this again."
                 )
 

@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v5 (2026-09-04)
+
+A missing .private-patterns blocked every ordinary run of the guard instead of only blocking a release. It now warns and carries on, and only publishing is refused.
+
 ## v4 (2026-09-04)
 
 Works with any cégep on Omnivox: the portal hostname and the six French interface labels moved into a school: block in config, so pointing this at another college is a config change rather than a code change. START-HERE now handles a messy mid-semester start, asks which cégep you attend, and ends by telling you what you can actually ask your AI for.

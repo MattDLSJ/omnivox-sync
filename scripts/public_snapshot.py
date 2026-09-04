@@ -247,7 +247,7 @@ def _verify(out: Path) -> int:
     """
     got = subprocess.run(
         [sys.executable, str(REPO_ROOT / "scripts" / "check_private.py"),
-         "--path", str(out), "--history"],
+         "--path", str(out), "--history", "--certify"],
         capture_output=True,
         text=True,
     )

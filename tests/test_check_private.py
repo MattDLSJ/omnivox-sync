@@ -326,7 +326,9 @@ def test_a_half_armed_owner_cannot_certify_a_release(tmp_path, fake_repo, monkey
     (tmp_path / "f.txt").write_text("x\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(tmp_path), "add", "f.txt"], check=True)
 
-    assert guard.main(["--path", str(tmp_path)]) == guard.EXIT_CANNOT_CHECK
+    assert (
+        guard.main(["--path", str(tmp_path), "--certify"]) == guard.EXIT_CANNOT_CHECK
+    )
 
 
 def test_a_path_that_does_not_exist_is_an_error(tmp_path):
@@ -491,3 +493,23 @@ def test_a_known_value_in_a_commit_message_is_caught(tmp_path, fake_repo, monkey
     message = tmp_path / "msg"
     message.write_text("fix: reported by Jordan Tremblay\n", encoding="utf-8")
     assert guard.main(["--message-file", str(message)]) == guard.EXIT_HIT
+
+
+def test_a_missing_patterns_file_warns_but_does_not_block_ordinary_use(
+    tmp_path, fake_repo, monkeypatch, capsys
+):
+    """Failing every manual run and every commit would teach people to pass
+    --no-verify, and a guard nobody runs guards nothing. Only a publication is
+    blocked by a half-armed guard."""
+    import scripts.check_private as guard
+
+    (fake_repo / ".private-patterns").unlink()
+    monkeypatch.setattr(guard, "REPO_ROOT", fake_repo)
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / "f.txt").write_text("nothing private\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "f.txt"], check=True)
+
+    assert guard.main(["--path", str(tmp_path)]) == guard.EXIT_CLEAN
+    assert "WARNING" in capsys.readouterr().err
+
+    assert guard.main(["--path", str(tmp_path), "--certify"]) == guard.EXIT_CANNOT_CHECK
