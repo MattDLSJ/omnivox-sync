@@ -45,17 +45,34 @@ public-snapshot:
 # of what is already published, a version tag and a changelog entry. Your
 # private history is never read. Anyone downstream just runs `make update`.
 #   make publish MESSAGE="what changed"
+# MESSAGE travels through the ENVIRONMENT, never interpolated into this
+# recipe. Through the shell, quotes were silently dropped, a $ ate the rest of
+# the word, and backticks executed: the published changelog would not have said
+# what you typed. Leave MESSAGE out and it asks you, which handles accents,
+# quotes and two lines correctly.
 publish:
-	$(PY) scripts/publish.py $(if $(MESSAGE),-m "$(MESSAGE)") $(if $(DRY),--dry-run)
+	@PUBLISH_MESSAGE=$${MESSAGE:-} $(PY) scripts/publish.py \
+	  $(if $(MESSAGE),--message-env PUBLISH_MESSAGE) $(if $(DRY),--dry-run)
 
 # For someone who INSTALLED this: pull the latest release and reinstall
 # anything new. Dependencies do change between releases, and a pull on its own
 # leaves you with the new code and the old packages, which fails confusingly.
 update:
-	git pull --ff-only
+	@test -x $(PY) || { \
+	  echo "No Python environment here yet. Run this first:"; \
+	  echo "  make venv"; \
+	  exit 1; }
+	@git pull --ff-only || { \
+	  echo ""; \
+	  echo "Could not fast-forward. Your copy has commits or edits the"; \
+	  echo "release does not. Put them aside and try again:"; \
+	  echo "  git stash          # then: make update, then: git stash pop"; \
+	  echo "or keep them on a branch:"; \
+	  echo "  git switch -c my-changes && git switch - && make update"; \
+	  exit 1; }
 	$(PY) -m pip install -q -r requirements.txt
-	@$(PY) -m pytest -m "not live" -q || \
-	  echo "Tests fail after updating. Report it rather than working around it."
+	@$(PY) -m pytest -m "not live" || \
+	  echo "Tests fail after updating. Report that rather than working around it."
 	@echo "Up to date. See CHANGELOG.md for what changed."
 
 dry-run:

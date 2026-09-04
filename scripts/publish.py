@@ -27,6 +27,7 @@ commit messages in this repo ended up naming a class its author skipped.
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -77,7 +78,9 @@ def _preflight() -> None:
         )
     print("Running the offline tests before publishing anything...")
     tests = subprocess.run(
-        [sys.executable, "-m", "pytest", "-m", "not live", "-q"],
+        # No -q here: pyproject already sets it in addopts, and a second one
+        # makes it -qq, which suppresses the "N passed" summary line entirely.
+        [sys.executable, "-m", "pytest", "-m", "not live"],
         cwd=str(REPO_ROOT),
         capture_output=True,
         text=True,
@@ -105,15 +108,14 @@ def _check_message(message: str) -> None:
 
 def _fetch_public(url: str) -> Path:
     if WORK.exists():
+        snap._assert_safe_to_overwrite(REPO_ROOT, WORK)
         shutil.rmtree(WORK)
     WORK.parent.mkdir(parents=True, exist_ok=True)
     print(f"Fetching the published repo from {url}")
-    subprocess.run(
-        ["git", "clone", "--quiet", url, str(WORK)],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    # Through the helper, so "repository not found" or "authentication failed"
+    # is readable instead of a Python traceback with the real message eaten.
+    _run("clone", "--quiet", url, str(WORK), cwd=REPO_ROOT)
+    (WORK / ".git" / "snapshot-build").write_text("built by scripts/publish.py\n")
     return WORK
 
 
@@ -148,8 +150,20 @@ def _summarise(public: Path) -> str:
 
 
 def _next_version(public: Path) -> str:
+    """Highest released number plus one, from the tags AND the changelog.
+
+    Tags alone were not enough: a tag that failed to push, or was deleted,
+    silently restarted the count on top of a repo already at v6.
+    """
     tags = _run("tag", "--list", "v*", cwd=public, check=False).split()
     numbers = [int(t[1:]) for t in tags if t[1:].isdigit()]
+    log = public / CHANGELOG
+    if log.exists():
+        import re
+
+        numbers += [
+            int(m) for m in re.findall(r"^## v(\d+)", log.read_text(encoding="utf-8"), re.M)
+        ]
     return f"v{max(numbers) + 1 if numbers else 1}"
 
 
@@ -172,6 +186,11 @@ def _write_changelog(public: Path, version: str, message: str) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("-m", "--message", help="the release note, one or two lines")
+    parser.add_argument(
+        "--message-env",
+        help="name of an environment variable holding the note, so it never "
+        "passes through a shell that would mangle quotes and dollar signs",
+    )
     parser.add_argument("--dry-run", action="store_true", help="stop before pushing")
     args = parser.parse_args(argv)
 
@@ -183,13 +202,31 @@ def main(argv: list[str] | None = None) -> int:
     _swap_tree(public)
     _run("add", "--all", cwd=public)
 
-    if not _summarise(public):
+    names = _summarise(public)
+    if not names:
         print("\nNothing changed since the last release. Nothing to publish.")
         return 0
+
+    removed = [l.split("\t", 1)[1] for l in names.splitlines() if l.startswith("D")]
+    if removed:
+        # A file somebody else added to the public repo disappears here without
+        # a word, because the tree is replaced wholesale. Say so out loud.
+        print("\nThese files exist in the published repo and will be DELETED:")
+        for name in removed:
+            print(f"    {name}")
+        if not sys.stdin.isatty():
+            raise SystemExit(
+                "Refusing to delete published files without a confirmation. "
+                "Run this in a terminal."
+            )
+        if input("Delete them? [y/N] ").strip().lower() not in ("y", "yes"):
+            raise SystemExit("Nothing published.")
 
     snap._assert_nothing_forbidden(public)
 
     message = args.message
+    if not message and args.message_env:
+        message = os.environ.get(args.message_env, "").strip()
     if not message:
         if not sys.stdin.isatty():
             raise SystemExit("No release note. Pass MESSAGE=\"...\" or run this in a terminal.")
@@ -216,8 +253,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     print(f"\nPushing {version}...")
-    _run("push", "origin", "HEAD", cwd=public)
-    _run("push", "origin", version, cwd=public)
+    # One atomic push. Two separate ones could land the commit and lose the
+    # tag, and _next_version reads only tags, so the NEXT release would reuse
+    # the same number and the changelog would carry two entries for it.
+    _run("push", "--atomic", "origin", "HEAD", version, cwd=public)
     print(
         f"\nPublished {version}.\n"
         f"  {url}\n\n"

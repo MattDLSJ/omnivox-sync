@@ -173,6 +173,11 @@ def _from_pattern_file(repo_root: Path) -> tuple[list[Needle], list[str]]:
     path = repo_root / ".private-patterns"
     if not path.exists():
         return [], []
+    # An exception naming an internal label rather than real content would
+    # switch off a whole needle SOURCE at once. "!private-patterns" silenced
+    # every pattern in the file, which is not an exception, it is an off switch.
+    reserved = {"private-patterns", ".env", "config.yaml", "teacher", "git ",
+                "ntfy_topic", "school_ssid", "school_ip_prefix", "base_path"}
     needles, allowed = [], []
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
@@ -183,7 +188,24 @@ def _from_pattern_file(repo_root: Path) -> tuple[list[Needle], list[str]]:
             # here. For a while that was a lie: there was no such syntax, and
             # the only way past a false positive was --no-verify, which turns
             # the whole thing off.
-            allowed.append(line[1:].strip().lower())
+            token = line[1:].strip().lower()
+            if not token:
+                continue
+            if token in reserved:
+                raise CannotCheck(
+                    f"'!{token}' in .private-patterns names one of this tool's "
+                    "own labels rather than something in your files, which "
+                    "would switch off a whole source of needles at once. "
+                    "Write the text that should be allowed, or the path of the "
+                    "file that should be skipped."
+                )
+            if len(token) < MIN_NEEDLE:
+                raise CannotCheck(
+                    f"'!{token}' in .private-patterns is too short to be an "
+                    f"exception; it would cancel almost every hit. Use at "
+                    f"least {MIN_NEEDLE} characters."
+                )
+            allowed.append(token)
             continue
         if line.startswith("/") and line.endswith("/") and len(line) > 2:
             needles.append(Needle(".private-patterns", line[1:-1], is_regex=True))
@@ -291,8 +313,15 @@ def scan(
     exceptions = [e for e in (exceptions or []) if e]
     hits: list[str] = []
 
-    def record(hit: str) -> None:
-        if not any(allowed in hit.lower() for allowed in exceptions):
+    def record(hit: str, haystack: str) -> None:
+        """`haystack` is the offending text, never the report line.
+
+        Matching the report line was worse than useless: the value in it is
+        redacted, so "!Jordan Tremblay" could never match and never worked,
+        while "!README.md" matched the path in every report line for that file
+        and silently exempted the whole file.
+        """
+        if not any(allowed in haystack.lower() for allowed in exceptions):
             hits.append(hit)
 
     for rel, staged in files:
@@ -306,7 +335,7 @@ def scan(
             if needle.search(str(rel)) or (
                 not needle.is_regex and _flatten_path(needle.value) in flat_path
             ):
-                record(f"{rel}  {needle.label} ({needle.redacted()}) in the path")
+                record(f"{rel}  {needle.label} ({needle.redacted()}) in the path", str(rel))
 
         if staged is not None:
             text = staged
@@ -324,14 +353,14 @@ def scan(
             for needle in needles:
                 if needle.search(line):
                     found_on_a_line.add(needle.value)
-                    record(f"{rel}:{number}  {needle.label} ({needle.redacted()})")
+                    record(f"{rel}:{number}  {needle.label} ({needle.redacted()})", line)
 
         flat = _flatten(text)
         for needle in needles:
             if needle.is_regex or needle.value in found_on_a_line:
                 continue
             if _flatten(needle.value) in flat:
-                record(f"{rel}  {needle.label} ({needle.redacted()}) split across lines")
+                record(f"{rel}  {needle.label} ({needle.redacted()}) split across lines", flat)
     return hits
 
 
@@ -411,15 +440,41 @@ def main(argv: list[str] | None = None) -> int:
             raise CannotCheck(f"{root} does not exist.")
         needles = collect_needles(REPO_ROOT)
         exceptions = collect_exceptions(REPO_ROOT)
+        from_patterns = any(n.label.startswith(".private-patterns") for n in needles)
+
         if not needles:
-            # This used to print a friendly note and return 0, which the hook
-            # and the snapshot both read as "verified". A check with nothing
-            # to look for has verified nothing.
-            raise CannotCheck(
-                "nothing to look for. Copy .private-patterns.example to "
-                ".private-patterns and fill it in, or keep a .env beside this "
-                "repo. Until then this cannot tell you anything."
+            # A consumer's clone: no credentials, an unfilled config, and the
+            # example patterns file which holds only comments. There is
+            # genuinely nothing here to guard, and that is the normal state
+            # rather than a failure. Returning 2 here made the commit hook
+            # reject every commit they tried to make on their own copy.
+            print(
+                "check-private: nothing private configured here, so there is "
+                "nothing to guard. Normal on a fresh clone."
             )
+            return EXIT_CLEAN
+
+        if not from_patterns:
+            # .private-patterns is untracked by design, so it does not survive
+            # a fresh clone or a new machine. Losing it silently drops the
+            # needles that no config file can know: your name, your machine,
+            # someone else's name on a paired device, your home coordinates.
+            print(
+                "check-private: WARNING, nothing came from .private-patterns, "
+                "so the things no config file can know (your name, your "
+                "machine, someone else's name on a paired device, your home "
+                "coordinates) are NOT being checked. Fill in "
+                ".private-patterns, from the .example beside it.",
+                file=sys.stderr,
+            )
+            if not args.staged and not args.message_file:
+                # This path is what `make publish` verifies a release with.
+                # Half-armed is not good enough to publish behind.
+                raise CannotCheck(
+                    "refusing to certify a tree while .private-patterns is "
+                    "missing. Restore it, then run this again."
+                )
+
         files = _files_staged(root) if args.staged else _files_at_head(root)
     except CannotCheck as exc:
         print(f"check-private: CANNOT CHECK. {exc}", file=sys.stderr)
@@ -432,16 +487,6 @@ def main(argv: list[str] | None = None) -> int:
     scope = "staged changes" if args.staged else f"{len(files)} tracked file(s)"
     if not hits:
         print(f"check-private: clean. {len(needles)} needle(s) across {scope}.")
-        if all(n.label.startswith("git ") for n in needles):
-            # Barely armed: the only thing it knows about you is your commit
-            # address, so "clean" here means very little. Say so rather than
-            # letting a one-needle pass look like a twenty-one-needle pass.
-            print(
-                "  note: the only needle is your commit address. Copy\n"
-                "  .private-patterns.example to .private-patterns to arm this "
-                "properly.",
-                file=sys.stderr,
-            )
         return EXIT_CLEAN
 
     print(f"check-private: {len(hits)} hit(s) across {scope}.\n")

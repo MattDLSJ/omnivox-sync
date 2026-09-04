@@ -287,13 +287,26 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if remote:
-        print(
-            f"\nClean, and wired to {remote}\n"
-            "To publish this build over the last one:\n\n"
-            f"  git -C {out} push --force origin main\n\n"
-            "Force is correct and not dangerous here: a snapshot is always a\n"
-            "single commit that replaces the previous single commit."
+        published = _git(
+            "ls-remote", "--tags", remote, "v*", cwd=REPO_ROOT, check=False
         )
+        if published:
+            latest = published.strip().splitlines()[-1].rsplit("/", 1)[-1]
+            print(
+                f"\nClean, but {remote}\nis ALREADY published (latest {latest}), "
+                "so do not push this over it.\n\n"
+                "  make publish MESSAGE=\"what changed\"\n\n"
+                "ships an update as one more commit, which is what people who "
+                "already\ncloned it can pull. Force-pushing this build would "
+                "delete every\nreleased version and break their `make update`."
+            )
+        else:
+            print(
+                f"\nClean, and wired to {remote}\n"
+                "That remote has no releases yet, so this build starts it:\n\n"
+                f"  git -C {out} push origin main\n\n"
+                "After that, ship updates with `make publish`, never with this."
+            )
     else:
         print(
             "\nClean. To publish it, pick a repository NAME THAT DOES NOT EXIST\n"

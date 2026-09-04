@@ -295,17 +295,37 @@ def test_a_name_in_the_filename_is_caught(fake_repo):
 # --------------------------------------------------------------------------
 
 
-def test_no_needles_at_all_is_an_error_not_a_pass(tmp_path, monkeypatch):
-    """The hole that made the whole thing decorative.
+def test_a_consumer_clone_with_nothing_private_is_clean(tmp_path, monkeypatch):
+    """Somebody who downloaded this has no credentials, an unfilled config and
+    the example patterns file, which holds only comments. There is genuinely
+    nothing to guard, and that is normal rather than a failure.
 
-    A fresh clone has no .env, no config.yaml and no .private-patterns, so
-    there was nothing to look for. main() printed a friendly note and returned
-    0, the pre-commit hook read that as approval, and public_snapshot printed
-    the word "Clean" above a `gh repo create --public --push`.
+    This returned exit 2 for a while, which made the commit hook reject every
+    commit they tried to make on their own copy of the project.
     """
     import scripts.check_private as guard
 
     monkeypatch.setattr(guard, "collect_needles", lambda root: [])
+    monkeypatch.setattr(guard, "collect_exceptions", lambda root: [])
+    assert guard.main(["--path", str(tmp_path)]) == guard.EXIT_CLEAN
+
+
+def test_a_half_armed_owner_cannot_certify_a_release(tmp_path, fake_repo, monkeypatch):
+    """.private-patterns is untracked, so it does not survive a fresh clone or
+    a new machine. Losing it drops every needle no config file can know: your
+    name, your machine, someone else's name on a paired device, your home.
+
+    With .env and config.yaml still supplying needles, that loss used to look
+    exactly like a fully armed run.
+    """
+    import scripts.check_private as guard
+
+    (fake_repo / ".private-patterns").unlink()
+    monkeypatch.setattr(guard, "REPO_ROOT", fake_repo)
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / "f.txt").write_text("x\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "f.txt"], check=True)
+
     assert guard.main(["--path", str(tmp_path)]) == guard.EXIT_CANNOT_CHECK
 
 
@@ -355,9 +375,14 @@ def test_staged_reads_the_blob_that_is_about_to_be_committed(tmp_path, fake_repo
 # --------------------------------------------------------------------------
 
 
-def test_an_exception_line_cancels_a_hit(fake_repo):
-    """Without this the only way past a false positive was --no-verify, which
-    turns the guard off entirely for that commit."""
+def test_an_exception_matches_the_offending_text_not_the_report(fake_repo):
+    """The exception the error message advertises has to be the value itself.
+
+    It used to be matched against the REPORT line, where the value is
+    redacted. So the documented remedy, naming the text to allow, could never
+    match and never worked; while naming the file's path matched every report
+    line for that file and silently exempted the whole file.
+    """
     from scripts.check_private import collect_exceptions
 
     target = fake_repo / "notes.md"
@@ -366,9 +391,29 @@ def test_an_exception_line_cancels_a_hit(fake_repo):
     assert scan(fake_repo, on_disk("notes.md"), needles)
 
     (fake_repo / ".private-patterns").write_text(
-        "Jordan Tremblay\n!notes.md\n", encoding="utf-8"
+        "Jordan Tremblay\n!Camille Nadeau\n", encoding="utf-8"
     )
     assert scan(fake_repo, on_disk("notes.md"), needles, collect_exceptions(fake_repo)) == []
+
+
+def test_an_exception_cannot_name_one_of_the_tools_own_labels(fake_repo):
+    """"!private-patterns" matched the label printed in every report line, so
+    one line switched off an entire source of needles. That is not an
+    exception, it is an off switch."""
+    from scripts.check_private import CannotCheck, collect_exceptions
+
+    (fake_repo / ".private-patterns").write_text("!private-patterns\n", encoding="utf-8")
+    with pytest.raises(CannotCheck, match="own labels"):
+        collect_exceptions(fake_repo)
+
+
+def test_a_tiny_exception_is_refused(fake_repo):
+    """A short exception cancels almost every hit by accident."""
+    from scripts.check_private import CannotCheck, collect_exceptions
+
+    (fake_repo / ".private-patterns").write_text("!abc\n", encoding="utf-8")
+    with pytest.raises(CannotCheck, match="too short"):
+        collect_exceptions(fake_repo)
 
 
 # --------------------------------------------------------------------------

@@ -32,8 +32,8 @@ what is new. Silence means it checked and there was nothing.
 
 ### What it is not
 
-It is not a product. It has no interface, no account system, no update
-mechanism and no error reporting. `config.yaml` is deliberately not in the
+It is not a product. It has no interface, no account system and no error
+reporting. `config.yaml` is deliberately not in the
 repository because it is a personal timetable, so part of your job is building
 mine. The NotebookLM upload leans on an unofficial community tool that the
 project's own README says will break eventually.
@@ -61,10 +61,12 @@ improvise around it.
 - **Never invent a value in `config.yaml`.** Course codes, folder names and
   notebook names come from the discovery step or from me, never from you.
 - **After every change, run the offline tests** and tell me the number that
-  passed: `pytest -m "not live" -q`. On the machine this came from, 896 pass in
-  about 20 seconds. If your number drops, stop and fix it before continuing.
-- **Never commit anything** unless I ask. And never run `make public-snapshot`
-  or push: those belong to whoever owns this repository, not to me.
+  passed: `pytest -m "not live" -q`. Note the number the first time you run
+  them and compare after every step. If it ever drops, stop and fix that before
+  continuing. They take about twenty seconds and need no account.
+- **Never commit anything** unless I ask, and never push. In particular never
+  run `make publish` or `make public-snapshot`: those send code to the public
+  repository and belong to whoever maintains it, not to me.
 - **Prefer showing me the real output** over telling me it worked.
 
 ### Order of operations
