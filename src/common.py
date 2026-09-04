@@ -60,6 +60,22 @@ class Course:
 
 
 @dataclass(frozen=True)
+class SchoolConfig:
+    """Which Omnivox this account lives on, and what its buttons say.
+
+    Omnivox is one product across nearly every cégep in Quebec, so the only
+    things that vary are the hostname and, for the English-language colleges
+    on the same system, six pieces of visible text. Empty means the default
+    the code was written against.
+    """
+
+    portal: str = ""
+    home: str = ""
+    lea: str = ""
+    labels: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True)
 class NotifyConfig:
     macos: bool = True
     ntfy_topic: str = ""
@@ -142,6 +158,10 @@ class Config:
     # Gate, not a preference: true queues the transcript, false queues nothing.
     # The audio is never uploaded automatically under either setting.
     upload_transcript: bool = True
+
+    #: Which Omnivox to talk to. Defaults to the one this was written
+    #: against, so an existing config.yaml needs no change.
+    school: SchoolConfig = SchoolConfig()
 
     def course_by_code(self, code: str) -> Course | None:
         return next((c for c in self.courses if c.code == code), None)
@@ -231,6 +251,19 @@ def load_config(config_path: Path, *, repo_root: Path | None = None) -> Config:
             raise ConfigError(f"Duplicate course code {course.code!r} in courses")
         seen.add(course.code)
 
+    school_raw = raw.get("school") or {}
+    if not isinstance(school_raw, dict):
+        raise ConfigError("school: must be a mapping")
+    labels_raw = school_raw.get("labels") or {}
+    if not isinstance(labels_raw, dict):
+        raise ConfigError("school.labels: must be a mapping")
+    school_cfg = SchoolConfig(
+        portal=str(school_raw.get("portal", "") or "").strip(),
+        home=str(school_raw.get("home", "") or "").strip(),
+        lea=str(school_raw.get("lea", "") or "").strip(),
+        labels=tuple((str(k), str(v)) for k, v in labels_raw.items()),
+    )
+
     notify_raw = raw.get("notify") or {}
     # An ntfy.sh topic is a bearer secret in disguise: anyone who knows the name
     # can read every notification and push their own. config.yaml is no longer
@@ -282,6 +315,7 @@ def load_config(config_path: Path, *, repo_root: Path | None = None) -> Config:
         courses=courses,
         schedule=list(raw.get("schedule") or []),
         notify=notify_cfg,
+        school=school_cfg,
         digest_ranking=ranking,
         notebooklm_mode=nb_mode,
         at_school_check=school_check,
@@ -314,6 +348,37 @@ def load_config(config_path: Path, *, repo_root: Path | None = None) -> Config:
         whisper_model=str(raw.get("whisper_model", "") or ""),
         upload_transcript=bool(raw.get("upload_transcript", True)),
     )
+
+
+def build_portal(cfg) -> "object":
+    """Turn the `school:` config into the Portal the scraper drives.
+
+    Kept here rather than in omnivox.py so that config stays the only place
+    anyone has to look to point this at a different cégep.
+    """
+    from src.omnivox import DEFAULT_PORTAL, Portal
+
+    school = getattr(cfg, "school", None) or SchoolConfig()
+    if not (school.portal or school.home or school.lea or school.labels):
+        return DEFAULT_PORTAL
+    fields = {}
+    if school.portal:
+        fields["school"] = school.portal
+    if school.home:
+        fields["home"] = school.home
+    if school.lea:
+        fields["lea"] = school.lea
+    for key, value in school.labels:
+        if key == "docs_nav":
+            fields[key] = tuple(v.strip() for v in value.split("|") if v.strip())
+        elif key in {"docs_link", "travaux_link", "lea_link_name", "logged_in_text"}:
+            fields[key] = value
+        else:
+            raise ConfigError(
+                f"school.labels: unknown label {key!r}. Valid: docs_link, "
+                "travaux_link, docs_nav, lea_link_name, logged_in_text"
+            )
+    return Portal(**fields)
 
 
 def env_value(repo_root: Path, key: str) -> str:

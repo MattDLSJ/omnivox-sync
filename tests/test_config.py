@@ -193,3 +193,96 @@ def test_the_example_config_actually_loads(tmp_path):
     cfg = load_config(Path("config.example.yaml"), repo_root=tmp_path)
     assert cfg.semester
     assert cfg.notify.ntfy_topic == ""
+
+
+# --------------------------------------------------------------------------
+# Pointing this at a different cégep
+# --------------------------------------------------------------------------
+
+
+def test_the_default_school_is_unchanged_by_an_empty_block(write_config, tmp_repo):
+    """An existing config.yaml, which has no school: block at all, must keep
+    working exactly as before."""
+    from src.common import build_portal
+
+    portal = build_portal(load_config(write_config(), repo_root=tmp_repo))
+    assert portal.home == "https://cegepmontpetit.omnivox.ca"
+    assert portal.lea == "https://cegepmontpetit-lea.omnivox.ca"
+
+
+def test_a_different_cegep_is_one_config_line(write_config, tmp_repo):
+    """Omnivox is one product across nearly every cégep in Quebec, so the
+    hostname is the only thing that has to change for most of them."""
+    from src.common import build_portal
+
+    cfg = load_config(
+        write_config({"school": {"portal": "cvm"}}), repo_root=tmp_repo
+    )
+    portal = build_portal(cfg)
+    assert portal.home == "https://cvm.omnivox.ca"
+    assert portal.lea == "https://cvm-lea.omnivox.ca"
+    assert portal.docs_link == "Documents et vidéos", "labels unchanged"
+
+
+def test_an_odd_hostname_can_be_given_outright(write_config, tmp_repo):
+    from src.common import build_portal
+
+    cfg = load_config(
+        write_config({"school": {"home": "https://a.example.ca",
+                                 "lea": "https://b.example.ca"}}),
+        repo_root=tmp_repo,
+    )
+    portal = build_portal(cfg)
+    assert portal.home == "https://a.example.ca"
+    assert portal.lea == "https://b.example.ca"
+
+
+def test_an_english_college_swaps_the_labels(write_config, tmp_repo):
+    """The scraper navigates by clicking visible text. Six strings is the
+    whole difference for an English-language college on the same Omnivox."""
+    from src.common import build_portal
+
+    cfg = load_config(
+        write_config({"school": {
+            "portal": "dawsoncollege",
+            "labels": {
+                "docs_link": "Documents and videos",
+                "travaux_link": "Distributed assignments",
+                "docs_nav": "Distributed documents|Documents and videos|Documents",
+            },
+        }}),
+        repo_root=tmp_repo,
+    )
+    portal = build_portal(cfg)
+    assert portal.docs_link == "Documents and videos"
+    assert portal.travaux_link == "Distributed assignments"
+    assert portal.docs_nav == (
+        "Distributed documents", "Documents and videos", "Documents",
+    )
+
+
+def test_a_misspelled_label_is_refused_rather_than_ignored(write_config, tmp_repo):
+    """Silently ignoring it would mean the scraper clicks the French text on an
+    English portal and reports "no documents" forever."""
+    from src.common import build_portal
+
+    cfg = load_config(
+        write_config({"school": {"labels": {"docs_lnik": "typo"}}}),
+        repo_root=tmp_repo,
+    )
+    with pytest.raises(ConfigError, match="unknown label"):
+        build_portal(cfg)
+
+
+def test_the_session_uses_the_portal_it_is_given():
+    """The two hosts are different origins. Resolving a LÉA path against the
+    portal is a 404 on every course, which this project has shipped once."""
+    from src.omnivox import OmnivoxSession, Portal
+
+    class _Page:
+        url = "https://cvm.omnivox.ca/intr/"
+
+    session = OmnivoxSession.__new__(OmnivoxSession)
+    session.portal = Portal(school="cvm")
+    session.page = _Page()
+    assert session._absolute("ListeDocuments.aspx").startswith("https://cvm-lea.")

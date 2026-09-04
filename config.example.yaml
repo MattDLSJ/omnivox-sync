@@ -13,6 +13,34 @@ courses: []
 # Filled once the timetable is published (Milestone 4). M4 is inert while empty.
 schedule: []
 
+# --------------------------------------------------------------------------
+# Which Omnivox this account is on.
+#
+# Omnivox is one product, sold to nearly every cégep in Quebec, so the login
+# form, the page names and the CSS are identical everywhere. Only the hostname
+# differs, and it follows a pattern: log into your portal and read the address
+# bar. If it says https://cegepmontpetit.omnivox.ca then your portal is
+# "cegepmontpetit". Leave it empty to use that one.
+school:
+  portal: ""
+
+  # For a school whose hostname does not follow the pattern, set these two
+  # outright instead. They are different origins and must not be swapped:
+  # resolving a LÉA path against the portal is a 404 on every course.
+  home: ""    # e.g. https://cegepmontpetit.omnivox.ca
+  lea: ""     # e.g. https://cegepmontpetit-lea.omnivox.ca
+
+  # The scraper navigates by clicking visible text, so it speaks French by
+  # default. An English-language college on the same Omnivox needs these, and
+  # nothing else in the project changes. docs_nav is a "|"-separated list of
+  # the names that page has gone by.
+  labels: {}
+  #   docs_link: "Documents and videos"
+  #   travaux_link: "Distributed assignments"
+  #   docs_nav: "Distributed documents|Documents and videos|Documents"
+  #   lea_link_name: "Léa"
+  #   logged_in_text: "What's new"
+
 notify:
   macos: true
   # Phone push goes through ntfy.sh. The topic name is the only thing guarding

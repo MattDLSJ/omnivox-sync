@@ -17,9 +17,58 @@ from urllib.parse import urljoin
 
 from playwright.sync_api import Page, sync_playwright
 
-OMNIVOX_HOME = "https://cegepmontpetit.omnivox.ca"
-LEA_HOME = "https://cegepmontpetit-lea.omnivox.ca"
 DEFAULT_TIMEOUT_MS = 30_000
+
+
+@dataclass(frozen=True)
+class Portal:
+    """Which Omnivox this talks to, and what the buttons are called on it.
+
+    Omnivox is one product, sold by Skytech to nearly every cégep in Quebec,
+    so the machinery is identical everywhere: the same ASPX page names, the
+    same CSS classes, the same login form. Two things do differ, and they are
+    the only two things in here.
+
+    The HOST. Each school gets `<school>.omnivox.ca` for the portal and
+    `<school>-lea.omnivox.ca` for LÉA, which are different origins and must
+    not be confused: resolving a LÉA path against the portal is a 404 on every
+    course, and this project has made that mistake once already.
+
+    The LANGUAGE. Navigation happens by clicking visible text, so the French
+    interface is wired in by default. An English-language college on the same
+    Omnivox (Dawson, Vanier, John Abbott) needs these six strings swapped, and
+    nothing else. Everything not in this class is language-independent.
+    """
+
+    school: str = "cegepmontpetit"
+    home: str = ""
+    lea: str = ""
+
+    docs_link: str = "Documents et vidéos"
+    travaux_link: str = "Énoncés distribués"
+    docs_nav: tuple[str, ...] = (
+        "Documents distribués",
+        "Documents et vidéos",
+        "Documents",
+    )
+    lea_link_name: str = "Léa"
+    logged_in_text: str = "Quoi de neuf"
+
+    def __post_init__(self) -> None:
+        # Derived, but overridable: a school whose hostname does not follow the
+        # pattern can set `home` and `lea` outright.
+        if not self.home:
+            object.__setattr__(self, "home", f"https://{self.school}.omnivox.ca")
+        if not self.lea:
+            object.__setattr__(self, "lea", f"https://{self.school}-lea.omnivox.ca")
+
+
+DEFAULT_PORTAL = Portal()
+
+#: Kept because the whole codebase and its tests refer to them, and because a
+#: single-school checkout has exactly one portal.
+OMNIVOX_HOME = DEFAULT_PORTAL.home
+LEA_HOME = DEFAULT_PORTAL.lea
 
 
 class OmnivoxError(Exception):
@@ -303,6 +352,11 @@ class OmnivoxSession:
             courses = session.list_courses()
     """
 
+    #: Class-level so a session built without __init__ still resolves URLs.
+    #: Tests exercise _absolute() on a bare instance, and a portal is a
+    #: property of the school rather than of any one browser session.
+    portal: Portal = DEFAULT_PORTAL
+
     def __init__(
         self,
         profile_dir: Path,
@@ -310,8 +364,10 @@ class OmnivoxSession:
         headed: bool = False,
         screenshot_dir: Path | None = None,
         logger: logging.Logger | None = None,
+        portal: Portal | None = None,
     ) -> None:
         self.profile_dir = Path(profile_dir)
+        self.portal = portal or DEFAULT_PORTAL
         self.headed = headed
         self.screenshot_dir = Path(screenshot_dir) if screenshot_dir else None
         self.log = logger or logging.getLogger("school.omnivox")
@@ -384,7 +440,7 @@ class OmnivoxSession:
         if not user or not password:
             raise LoginError("OMNIVOX_USER / OMNIVOX_PASS are empty; fill in .env")
 
-        _goto(self.page, OMNIVOX_HOME, logger=self.log)
+        _goto(self.page, self.portal.home, logger=self.log)
 
         if self.is_logged_in():
             self.log.info("Existing Omnivox session reused; skipping login form")
@@ -486,7 +542,7 @@ class OmnivoxSession:
         The 6-digit code is never read, requested, or typed by this program —
         the user enters it themselves. This only waits for the result.
         """
-        _goto(self.page, OMNIVOX_HOME, logger=self.log)
+        _goto(self.page, self.portal.home, logger=self.log)
 
         if self.is_logged_in():
             self.log.info("Already logged in; this profile is already trusted.")
@@ -532,9 +588,9 @@ class OmnivoxSession:
         Going straight to the LEA host ends the session (…/Login?isLogout=1),
         so this always clicks through the Skytech redirector.
         """
-        _goto(self.page, OMNIVOX_HOME + "/intr/", logger=self.log)
+        _goto(self.page, self.portal.home + "/intr/", logger=self.log)
 
-        link = self.page.get_by_role("link", name=_LEA_LINK_NAME, exact=True).first
+        link = self.page.get_by_role("link", name=self.portal.lea_link_name, exact=True).first
         try:
             if not link.is_visible(timeout=4000):
                 link = None
@@ -592,7 +648,7 @@ class OmnivoxSession:
 
             href = ""
             try:
-                docs = card.get_by_text(_DOCS_LINK_TEXT).first
+                docs = card.get_by_text(self.portal.docs_link).first
                 anchor = docs.locator("xpath=ancestor-or-self::a[1]")
                 if anchor.count() > 0:
                     href = anchor.first.get_attribute("href") or ""
@@ -638,7 +694,7 @@ class OmnivoxSession:
             if card.count() == 0:
                 self.screenshot(f"course-card-missing-{course.code}")
                 raise ParseError(f"No LEA card found for {course.code} at {self.page.url}")
-            card.get_by_text(_DOCS_LINK_TEXT).first.click()
+            card.get_by_text(self.portal.docs_link).first.click()
             self.page.wait_for_load_state("domcontentloaded", timeout=DEFAULT_TIMEOUT_MS)
             self.page.wait_for_timeout(1500)
 
@@ -690,7 +746,7 @@ class OmnivoxSession:
         if card.count() == 0:
             self.screenshot(f"course-card-missing-{course.code}")
             raise ParseError(f"No LEA card found for {course.code} at {self.page.url}")
-        link = card.locator("a").filter(has_text=_TRAVAUX_LINK_TEXT).first
+        link = card.locator("a").filter(has_text=self.portal.travaux_link).first
         if link.count() == 0:
             # A course with no assignments posted yet has no such link. That is
             # a normal state, not a parse failure.
@@ -943,7 +999,7 @@ class OmnivoxSession:
 
     def _home(self) -> None:
         if not (self.page.url or "").rstrip("/").endswith("/intr"):
-            _goto(self.page, OMNIVOX_HOME + "/intr/", logger=self.log)
+            _goto(self.page, self.portal.home + "/intr/", logger=self.log)
             self.page.wait_for_timeout(1200)
 
     def _collect_quoi_de_neuf(self) -> list[dict]:
@@ -1032,7 +1088,7 @@ class OmnivoxSession:
         href = link.get_attribute("href") or ""
         if not href:
             return []
-        url = href if href.startswith("http") else OMNIVOX_HOME + href
+        url = href if href.startswith("http") else self.portal.home + href
         self.page.goto(url, wait_until="domcontentloaded")
         self.page.wait_for_timeout(5000)
 
@@ -1081,7 +1137,7 @@ class OmnivoxSession:
                 }
             )
         # Leave the browser back on the portal home for whatever runs next.
-        _goto(self.page, OMNIVOX_HOME + "/intr/", logger=self.log)
+        _goto(self.page, self.portal.home + "/intr/", logger=self.log)
         return items
 
     # ----------------------------------------------------------------------
@@ -1164,8 +1220,8 @@ class OmnivoxSession:
         if ref.startswith("http"):
             return ref
         base = self.page.url or ""
-        if not base.startswith(LEA_HOME):
-            base = LEA_HOME + "/"
+        if not base.startswith(self.portal.lea):
+            base = self.portal.lea + "/"
         return urljoin(base, ref)
 
     def download(self, doc: OmnivoxDocument, dest: Path) -> Path:

@@ -18,6 +18,7 @@ from pathlib import Path
 import yaml
 
 from src.common import (
+    build_portal,
     Config,
     ConfigError,
     Course,
@@ -110,11 +111,19 @@ def retry_due(cfg: Config, *, now: datetime | None = None) -> bool:
     return True
 
 
-def internet_up(timeout: int = 6) -> bool:
+def internet_up(timeout: int = 6, probe_url: str = "") -> bool:
+    """Reachability, probed against the school's own portal.
+
+    Probing a hardcoded school told you the wrong thing on any other one: the
+    host would be up while yours was down, or vice versa, and the retry logic
+    keys off this answer.
+    """
     import urllib.request
 
+    from src.omnivox import DEFAULT_PORTAL
+
     try:
-        urllib.request.urlopen("https://cegepmontpetit.omnivox.ca", timeout=timeout).close()
+        urllib.request.urlopen(probe_url or DEFAULT_PORTAL.home, timeout=timeout).close()
         return True
     except Exception:  # noqa: BLE001
         return False
@@ -867,6 +876,7 @@ def _open_session(cfg, *, headed: bool, logger):
         headed=headed,
         screenshot_dir=cfg.repo_root / "logs",
         logger=logger,
+        portal=build_portal(cfg),
     ) as session:
         session.login(user, password)
         yield session
@@ -890,6 +900,7 @@ def _bootstrap_login(cfg: Config, log: logging.Logger) -> int:
             headed=True,
             screenshot_dir=cfg.repo_root / "logs",
             logger=log,
+            portal=build_portal(cfg),
         ) as session:
             session.await_manual_login(user, password)
     except Exception as exc:  # noqa: BLE001
@@ -1006,7 +1017,7 @@ def _run(args, cfg: Config, log: logging.Logger) -> int:
     if args.retry:
         if not retry_due(cfg):
             return 0  # nothing pending, or the next window already superseded it
-        if not internet_up():
+        if not internet_up(probe_url=build_portal(cfg).home):
             return 0  # still offline; a later tick will catch it
         log.info("Internet is back — retrying the failed sync")
 

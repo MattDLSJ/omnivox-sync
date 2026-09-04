@@ -1,193 +1,233 @@
 # START HERE
 
-**Copy this entire file and paste it into a fresh AI coding session opened in
-this folder.** That is the whole setup process. There is no installer, no
-onboarding screen and no interface: this is a personal command-line tool that
-somebody built for their own semester, and the AI is what turns it into yours.
+**Copy this whole file and paste it into a fresh AI coding session opened in
+this folder.** That is the setup. There is no installer and no interface: this
+is a command-line tool somebody built for their own semester, and the AI is
+what turns it into yours.
 
-Ask the AI anything at any point. It has the code in front of it.
+Stop and ask it anything at any point. It has the code in front of it.
 
 ---
 
 ## Prompt
 
-You are setting up this project on my machine. Read this whole brief before
-running anything, then work through it with me step by step.
+You are setting this project up on my machine, and then you are staying on as
+the thing I ask about my semester. Read this whole brief before running
+anything, then work through it with me.
 
 ### Who I am
 
-I am a cégep student, not a developer. Assume I can copy a command into a
-terminal and read what comes back, and assume nothing beyond that. When
-something fails, tell me what broke in plain language and what you are doing
-about it. Do not hand me a wall of options and ask me to choose; pick the
-sensible one, say which you picked, and move on.
+A cégep student, not a developer. Assume I can copy a command into a terminal
+and read what comes back, and assume nothing past that. When something breaks,
+tell me what broke in plain language and what you are doing about it. Do not
+hand me a list of options to choose between: pick the sensible one, say which
+you picked, and keep going.
 
-### What this project does
+I am probably starting this partway into a semester, with course files already
+scattered around my Downloads folder and my desktop. That is the normal case,
+not something to clean up before we begin.
 
-Three times a day it logs into Omnivox, opens LÉA, and downloads every document
-and assignment brief it has not seen into a folder for that course. It converts
-PowerPoint and Word files to PDF along the way, optionally pushes them into a
-NotebookLM notebook for that course, and sends one notification summarising
-what is new. Silence means it checked and there was nothing.
+### What this actually is
+
+Three times a day it logs into Omnivox, opens LÉA, and pulls every document and
+assignment brief it has not already seen into a folder for that course. It
+converts PowerPoint and Word to PDF on the way, can push them into a NotebookLM
+notebook per course, and sends one notification about what is new. Silence
+means it checked and found nothing.
+
+The part people underestimate: it also **imposes a structure**. Course folders
+named consistently, a NotebookLM shortcut pinned to the top of each one,
+subfolders for recordings and textbook pages, a `_digest.md` of what is new and
+a `_horaire.md` of what is coming. If I am not an organised person, that is
+most of the value, and I get it without having to decide anything.
 
 ### What it is not
 
-It is not a product. It has no interface, no account system and no error
-reporting. `config.yaml` is deliberately not in the
-repository because it is a personal timetable, so part of your job is building
-mine. The NotebookLM upload leans on an unofficial community tool that the
-project's own README says will break eventually.
+Not a product. No account system, no error reporting, no support. `config.yaml`
+is deliberately not in the repository because it is somebody's personal
+timetable, so part of your job is building mine. The NotebookLM upload leans on
+an unofficial community tool that this project's own README says will break
+eventually.
 
-### Before you touch anything, confirm three things with me
+### Your job has three parts, and most people only do the first
 
-1. **My operating system**, exactly. macOS and Windows both work but the paths
-   and the scheduler differ, and one of them needs an extra install step.
-2. **That I have an Omnivox account at Cégep Édouard-Montpetit.** The portal
-   address is hardcoded in three places and the page parsing depends on this
-   school's exact French labels. A different cégep means real work, and you
-   should tell me that plainly rather than starting.
-3. **Python 3.11 or newer.** Run `python3 --version` on macOS or
-   `py --version` on Windows and show me the answer.
+1. **Get it running.** The mechanical part below.
+2. **Adapt it to me.** My cégep, my courses, my mess.
+3. **Tell me what I can now ask you for.** This is the part that matters and
+   the part you will be tempted to skip. Do not skip it.
 
-If any of the three is a no, stop and explain what it would take. Do not
+### Before you touch anything, confirm three things
+
+1. **My operating system.** macOS and Windows both work. The paths, the
+   scheduler and one install step differ.
+2. **Which cégep I attend.** Omnivox is one product used by nearly every cégep
+   in Quebec, so this very likely works for mine, but the hostname has to
+   match. Ask me to log into my portal and read the address bar: if it says
+   `https://cegepmontpetit.omnivox.ca` then my portal name is
+   `cegepmontpetit`. That goes in `config.yaml` at step 3. If my college's
+   interface is in English rather than French, say so now, because six pieces
+   of visible text need swapping and there is a `labels:` block for exactly
+   that.
+3. **Python 3.11 or newer.** `python3 --version` on macOS, `py --version` on
+   Windows. Show me what it says.
+
+If any of the three is a no, stop and tell me what it would take. Do not
 improvise around it.
 
-### Rules you must follow
+### Rules
 
-- **Never ask me for my Omnivox password in the chat, and never type it into a
-  file yourself.** When we reach that step, tell me to open `.env` and type it
-  in myself, then confirm the file is filled without printing its contents.
-  Same for any other password.
+- **Never ask me for a password in the chat, and never type one into a file
+  yourself.** When we get there, tell me to open `.env` and type it in, then
+  confirm the file is filled without printing what is in it.
 - **Never invent a value in `config.yaml`.** Course codes, folder names and
-  notebook names come from the discovery step or from me, never from you.
-- **After every change, run the offline tests** and tell me the number that
-  passed: `pytest -m "not live" -q`. Note the number the first time you run
-  them and compare after every step. If it ever drops, stop and fix that before
-  continuing. They take about twenty seconds and need no account.
-- **Never commit anything** unless I ask, and never push. In particular never
-  run `make publish` or `make public-snapshot`: those send code to the public
-  repository and belong to whoever maintains it, not to me.
-- **Prefer showing me the real output** over telling me it worked.
+  notebook names come from the discovery step or from me.
+- **Run the offline tests after every change** and tell me the number that
+  passed: `pytest -m "not live"`. Note it the first time and compare after each
+  step. If it drops, stop and fix that before continuing. No account needed.
+- **Never commit or push, and never run `make publish` or
+  `make public-snapshot`.** Those send code to the public repository and belong
+  to whoever maintains it, not to me.
+- **Show me real output** rather than telling me it worked.
 
 ### Order of operations
 
-Do these in order. Do not skip ahead, and check in with me at each numbered
-step rather than running the whole thing silently.
+Check in with me at each step rather than running the whole thing silently.
 
 **1. Build the environment.**
 
-On macOS: `make venv`. On Windows, `make` does not exist and virtual
-environments put Python somewhere else, so run these one at a time instead:
+macOS: `make venv`. Windows has no `make` and puts Python elsewhere, so:
 
     py -m venv .venv
     .venv\Scripts\python -m pip install -r requirements.txt
     .venv\Scripts\python -m playwright install chromium
 
-The last command downloads a browser, roughly 500 MB. That is expected.
+The last one downloads a browser, around 500 MB. Expected.
 
-For everything below, on Windows replace `make X` with the underlying command
-and `.venv/bin/python` with `.venv\Scripts\python`. Ask me before writing any
-`.bat` shortcuts; I probably do not need them.
+Everywhere below, on Windows replace `make X` with the command it wraps and
+`.venv/bin/python` with `.venv\Scripts\python`.
 
-**2. Install the external tools the README lists.**
+**2. Install what is not Python.**
 
-`ffmpeg`, and `LibreOffice` for the PowerPoint to PDF conversion. On Windows,
-LibreOffice installs to `C:\Program Files\LibreOffice\program\` and does not
-add itself to the PATH, so check whether `src/convert.py` can find it and tell
-me if it cannot. Skip `whisper.cpp` and the 1.5 GB model entirely for now: that
-is only for the lecture recorder, which we are not setting up.
+`ffmpeg`, and LibreOffice for the PowerPoint to PDF conversion. On Windows
+LibreOffice does not add itself to the PATH; the project knows the two usual
+install locations, so check that it is found and tell me if it is not. Skip
+whisper.cpp and its 1.5 GB model: that is for lecture recording, which we are
+not setting up.
 
-**3. Make my config files.**
+**3. Make my config.**
 
     cp config.example.yaml config.yaml
     cp .env.example .env
     cp .private-patterns.example .private-patterns
 
-Then, before anything else, set two things in `config.yaml` for me:
-`notebooklm: mode: "staging"` and `notify: macos: false`. I explain why in the
-notes at the bottom. Leave everything else alone until after discovery.
+Then set three things before anything else: my portal name under `school:`,
+`notebooklm: mode: "staging"`, and `notify: macos: false`. The last two are
+explained at the bottom.
 
 Now stop and tell me to fill in `OMNIVOX_USER` and `OMNIVOX_PASS` in `.env`
-myself. `OMNIVOX_USER` is my seven-digit student number (DA).
+myself. `OMNIVOX_USER` is my student number.
 
-**4. Log in once, interactively.**
+**4. Log in once, in a real browser.**
 
     make login
 
-This opens a real browser window. I type my credentials, Omnivox emails me a
-six-digit code, and I enter it. **Tell me before I start that I must tick
-"J'utilise un appareil de confiance"**, because if I miss it, every scheduled
-run afterwards gets challenged and the whole thing quietly stops working.
+I type my credentials, Omnivox emails a six-digit code, I enter it. **Tell me
+before I start that I have to tick "J'utilise un appareil de confiance."** Miss
+it and everything looks fine today, then every scheduled run afterwards gets
+challenged, so it quietly stops working tomorrow.
 
 **5. Discover my courses.**
 
     make discover
 
-This prints a `courses:` block. Paste it into `config.yaml` for me, then show
-me the result and ask whether the folder names look right. They become real
-folders on my disk, so this is the moment to change them.
+This prints a `courses:` block. Paste it into `config.yaml`, show me the
+result, and ask whether the folder names look right. They become real folders,
+so this is the moment to change them.
 
-**6. Rehearse, then run for real.**
+**6. Rehearse, then run.**
 
     make dry-run
 
-Nothing is downloaded and nothing is written. Show me the output and explain
-what it would have done. If it looks right, then run `make sync`.
+Nothing downloads, nothing is written. Show me the output and tell me what it
+would have done. Then `make sync` for real.
 
-**7. Only after a manual sync works**, ask me whether I want it scheduled.
-On macOS that is `make install-launchd`. On Windows there is no equivalent in
-this repo and you would set up a Task Scheduler entry pointing at
+The first real run backfills the whole semester so far, which for a normal
+course load is a hundred-odd files. That is correct, not a bug.
+
+**7. Deal with the mess I already have.**
+
+After the first sync the tool's folders are clean and my old scattered copies
+are not. Help me here rather than leaving it:
+
+- The sync **never overwrites or deletes anything**. A file already sitting in
+  a course folder that it does not recognise is left exactly alone, and a
+  revised version arrives beside it under a new name rather than on top. My
+  existing files are safe, but they may now be duplicated.
+- Offer to go through my Downloads folder and my desktop for course material,
+  show me what you found grouped by course, and tell me which ones the sync
+  already has. Let me decide what to delete. Do not delete anything yourself.
+- If I have my own folders from before, ask whether to keep them or move their
+  contents into the new structure.
+
+**8. Only once a manual sync works**, ask whether I want it scheduled.
+macOS: `make install-launchd`. Windows: a Task Scheduler entry pointing at
 `.venv\Scripts\python -m src.omnivox_sync`, with "run as soon as possible after
 a missed start" ticked and `PYTHONUTF8=1` in the environment.
 
+### Then tell me what I have, and offer these
+
+This is part 3 of your job. Once the sync runs, walk me through what changed
+about my semester, and offer the following. Recommend them, do not just list
+them.
+
+- **A calendar.** `make ics` turns my timetable into a file I import once, with
+  every class, room, teacher and block filled in. If I have not connected you
+  to a calendar tool, say so and recommend it, because from then on I can ask
+  you to add a deadline or move something and it happens. Then ask whether I
+  have my cégep's full-year calendar, the one with the reading weeks, the exam
+  period and the days off, and offer to find it and get it in too. That is the
+  thing everybody forgets until the week it matters.
+- **`make mirror`.** Given the secret iCal address of that calendar, it writes
+  each course's upcoming evaluations into the course folder, so a NotebookLM
+  notebook knows when my exams are.
+- **The digest.** `_digest.md` is one file telling me what is new across every
+  course. Show me where it is.
+- **Say what else I can ask you.** I can ask you to summarise a lecture deck,
+  build a study plan from a course outline, pull the dates out of a syllabus,
+  or tell me what I have due this week. Say it out loud with a concrete example
+  from a course you can actually see in my folders. Do not make me guess what
+  you are for.
+
 ### Things that fail silently, so watch for them
 
-These do not raise errors. They produce a wrong result quietly, which is worse.
+These raise no error. They quietly produce a wrong result, which is worse.
 
 - **NotebookLM notebooks are matched by name and never created.** If a notebook
   named exactly as in `config.yaml` does not already exist, every file goes to
-  a staging folder instead and nothing tells you why. This is why we start in
-  staging mode.
-- **The trusted-device checkbox at step 4.** Missing it does not fail now, it
-  fails every night from then on.
-- **Accented characters on Windows.** If notebook names come back mangled, the
+  a staging folder and nothing says why. That is why we start in staging mode.
+- **The trusted-device checkbox at step 4.** It does not fail today. It fails
+  every day after.
+- **Accented characters on Windows.** If notebook names come back mangled the
   name match fails and everything stages. Set `PYTHONUTF8=1`.
-- **The at-school gate, if I ever turn on recording.** When it cannot read the
-  location or the network it concludes I am not at school and records nothing,
-  without complaining. Leave `schedule:` empty and this whole subsystem stays
-  inert.
+- **A wrong label on an English portal.** The scraper navigates by clicking
+  visible text. If the labels are wrong it finds nothing and reports "no
+  documents" cheerfully, forever. If a course lists zero documents while the
+  website shows some, check that first.
 
 ### What we are deliberately not setting up
 
-The lecture recorder and live transcription. It is welded to macOS audio, it is
-the largest and most fragile part of the project, and it is completely inert
-while `schedule:` is empty in `config.yaml`. If I ask about it later, tell me
-what it would cost before starting.
+Lecture recording and live transcription. It is welded to macOS audio, it is
+the largest and most fragile part of the project, and it stays completely inert
+while `schedule:` is empty. If I ask about it later, tell me the cost first.
 
-On Windows, folder colours and emoji icons will not work either. That is fine
-and needs no action: the code catches its own errors there and logs a warning
-per course folder while the sync carries on.
-
-### Notes on the two settings from step 3
-
-**`mode: "staging"`** means the NotebookLM upload tool is never invoked at all.
-Each new file is copied into `<course>/_to_upload/` and I drag it into
-NotebookLM myself. I keep all the downloading, converting and filing, and lose
-only the last drag-and-drop. Once everything else works, we can try switching
-to `"auto"`, which needs a separate tool installed and a notebook created by
-hand for each course.
-
-**`macos: false`** turns off desktop notifications. If I want notifications on
-my phone instead, tell me about the `NTFY_TOPIC` setting in `.env`: I pick any
-random string nobody would guess, put it there, and subscribe to the same name
-in the ntfy app. Explain that an ntfy topic has no password, so anyone who
-knows the name can read my notifications, which is why it belongs in `.env` and
-never in `config.yaml`.
+On Windows the folder colours and emoji icons will not work either. Nothing to
+do: the code catches its own errors there and logs a warning per course folder
+while the sync carries on.
 
 ### Keeping it up to date
 
-This project gets updates. Tell me how to get them, and put it somewhere I
-will find it again:
+This project gets updates. Tell me how to get them and put it somewhere I will
+find again:
 
     make update
 
@@ -196,13 +236,30 @@ On Windows, or anywhere without `make`, that is two commands:
     git pull --ff-only
     .venv\Scripts\python -m pip install -r requirements.txt
 
-The second one matters. Dependencies do change between releases, and pulling
-on its own leaves me with the new code and the old packages, which fails in a
-way that looks like a bug in the project. `CHANGELOG.md` at the root says what
-changed in each version.
+The second matters. Dependencies change between releases, and pulling alone
+leaves me with new code and old packages, which fails in a way that looks like
+a bug in the project. `CHANGELOG.md` says what changed in each version. If the
+pull refuses because I have my own commits, tell me to put them on a branch or
+stash them rather than forcing anything.
+
+### The two settings from step 3
+
+**`mode: "staging"`** means the NotebookLM tool is never invoked. New files are
+copied into `<course>/_to_upload/` and I drag them in myself. I keep all the
+downloading, converting and filing and lose only the last drag. Once everything
+else works we can try `"auto"`, which needs a separate tool installed and a
+notebook created by hand per course.
+
+**`macos: false`** turns off desktop notifications. For phone notifications
+instead, tell me about `NTFY_TOPIC` in `.env`: I pick a random string nobody
+would guess, put it there, and subscribe to the same name in the ntfy app.
+Explain that an ntfy topic has no password, so anyone who knows the name can
+read my notifications, which is why it lives in `.env` and never in
+`config.yaml`.
 
 ### When you are done
 
-Tell me, in five lines or fewer: what runs now, where my files land on disk,
-what I still have to do by hand, and the one command I type if I want to sync
-right now without waiting.
+Tell me in five lines or fewer: what runs now, where my files are, what I still
+have to do by hand, and the one command to sync right now without waiting.
+
+Then ask what I want to do with it first.
