@@ -135,7 +135,9 @@ fresh challenge.
 | `make record-now` | Record the class happening right now, ignoring the at-school gate. |
 | `make check-private` | Fail if anything personal is in the repo. `STAGED=1` for staged only, `HISTORY=1` to include commit messages. |
 | `make install-hooks` | Point git at `.githooks/`, so the check runs before every commit and on every commit message. |
-| `make public-snapshot` | Build a shareable copy: the tree at HEAD, one commit, no history. |
+| `make public-snapshot` | Create the public repository, once. |
+| `make publish` | Ship an update to it: `make publish MESSAGE="what changed"`. |
+| `make update` | For anyone who installed it: pull the latest release and reinstall deps. |
 
 Flags: `--dry-run`, `--course CODE`, `--headed`, `--discover`, `--login`,
 `--retry`, `--manual`, `--wait SECONDS`, `--config PATH`.
@@ -299,7 +301,7 @@ This history already carries messages exactly like that. Nothing automatic will
 ever catch them, so the rule is a habit rather than a check: commit messages
 describe the code, not the day you had.
 
-**`make public-snapshot` is how the code leaves.** Two things cannot be fixed by
+**`make public-snapshot` is how the code leaves, and `make publish` is how it stays current.** Two things cannot be fixed by
 editing a file: a commit message, and the author line on a commit. Both live in
 the commit object, both travel with a clone, and rewriting them changes every
 SHA while GitHub keeps serving the old objects to anyone who knows one. So the
@@ -312,8 +314,16 @@ you hand to other people.
 ```bash
 git config snapshot.name  "your-github-handle"
 git config snapshot.email "0000000+handle@users.noreply.github.com"
-make public-snapshot
+make public-snapshot                              # once, to create it
+git config snapshot.remote <the url it prints>    # so updates find it again
+make publish MESSAGE="what changed"               # every time after that
 ```
+
+The first snapshot starts the public repo at one commit. Every `make publish`
+after it adds one more on top, with a version tag and a `CHANGELOG.md` entry,
+so people who cloned it can `git pull` instead of starting over. Your private
+history is still never read: the public messages are the ones you type at
+publish time, and they go through `check-private` before they are committed.
 
 Set `user.email` in this repo to the same noreply address and future commits
 stop carrying your real one.

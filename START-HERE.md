@@ -182,6 +182,23 @@ in the ntfy app. Explain that an ntfy topic has no password, so anyone who
 knows the name can read my notifications, which is why it belongs in `.env` and
 never in `config.yaml`.
 
+### Keeping it up to date
+
+This project gets updates. Tell me how to get them, and put it somewhere I
+will find it again:
+
+    make update
+
+On Windows, or anywhere without `make`, that is two commands:
+
+    git pull --ff-only
+    .venv\Scripts\python -m pip install -r requirements.txt
+
+The second one matters. Dependencies do change between releases, and pulling
+on its own leaves me with the new code and the old packages, which fails in a
+way that looks like a bug in the project. `CHANGELOG.md` at the root says what
+changed in each version.
+
 ### When you are done
 
 Tell me, in five lines or fewer: what runs now, where my files land on disk,
