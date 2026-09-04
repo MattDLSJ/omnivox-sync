@@ -1,6 +1,6 @@
 PY := $(CURDIR)/.venv/bin/python
 
-.PHONY: books button capture-ip capture-location check-private discover dry-run fetch-vad ics install-hooks install-launchd install-live install-manual install-recorder install-retry login mic-test mirror public-snapshot record-now recorder-status setup-cheneliere setup-gemini setup-ics setup-mic setup-omnivox shortcuts sound-check sync test test-unit uninstall-launchd uninstall-live uninstall-manual uninstall-recorder uninstall-retry upload venv
+.PHONY: books button capture-ip capture-location check-private discover dry-run fetch-vad ics install-hooks install-launchd install-live install-manual install-recorder install-retry login mic-test mirror public-snapshot publish record-now recorder-status setup-cheneliere setup-gemini setup-ics setup-mic setup-omnivox shortcuts sound-check sync test test-unit uninstall-launchd uninstall-live uninstall-manual uninstall-recorder uninstall-retry update upload venv
 
 venv:
 	python3 -m venv .venv
@@ -36,10 +36,27 @@ install-hooks:
 	@echo "pre-commit and commit-msg hooks active. Bypass one commit with --no-verify."
 
 # Build a shareable copy: the tree at HEAD, one commit, an author you choose,
-# no history. This is what you send to someone, or publish. Your own repo and
-# its history are left alone.
+# no history. Use this ONCE, to create the public repository. After that,
+# `make publish` ships updates to it.
 public-snapshot:
 	$(PY) scripts/public_snapshot.py
+
+# Ship an update to the public repo: the tree at HEAD, one new commit on top
+# of what is already published, a version tag and a changelog entry. Your
+# private history is never read. Anyone downstream just runs `make update`.
+#   make publish MESSAGE="what changed"
+publish:
+	$(PY) scripts/publish.py $(if $(MESSAGE),-m "$(MESSAGE)") $(if $(DRY),--dry-run)
+
+# For someone who INSTALLED this: pull the latest release and reinstall
+# anything new. Dependencies do change between releases, and a pull on its own
+# leaves you with the new code and the old packages, which fails confusingly.
+update:
+	git pull --ff-only
+	$(PY) -m pip install -q -r requirements.txt
+	@$(PY) -m pytest -m "not live" -q || \
+	  echo "Tests fail after updating. Report it rather than working around it."
+	@echo "Up to date. See CHANGELOG.md for what changed."
 
 dry-run:
 	$(PY) -m src.omnivox_sync --dry-run
