@@ -1,6 +1,6 @@
 PY := $(CURDIR)/.venv/bin/python
 
-.PHONY: books button capture-ip capture-location check-private discover dry-run fetch-vad ics install-hooks install-launchd install-live install-manual install-recorder install-retry login mic-test mirror public-snapshot publish record-now recorder-status setup-cheneliere setup-gemini setup-ics setup-mic setup-omnivox shortcuts sound-check sync test test-unit uninstall-launchd uninstall-live uninstall-manual uninstall-recorder uninstall-retry update upload venv
+.PHONY: books button capture-ip capture-location check-private discover doctor dry-run fetch-vad ics install-hooks install-launchd install-live install-manual install-recorder install-retry login mic-test mirror public-snapshot publish record-now recorder-status setup-cheneliere setup-gemini setup-ics setup-mic setup-omnivox shortcuts sound-check sync test test-unit uninstall-launchd uninstall-live uninstall-manual uninstall-recorder uninstall-retry update upload venv
 
 venv:
 	python3 -m venv .venv
@@ -20,6 +20,11 @@ test-unit:
 #   make check-private            the tracked tree
 #   make check-private STAGED=1   only what is staged, which is what the hook runs
 #   make check-private HISTORY=1  also the commit messages and author lines
+# Is this actually working? Answers without touching the network, and tells
+# you what needs a person. Run it when something feels off.
+doctor:
+	@$(PY) -m src.omnivox_sync --doctor
+
 check-private:
 	$(PY) scripts/check_private.py $(if $(STAGED),--staged) $(if $(HISTORY),--history)
 

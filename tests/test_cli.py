@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 import yaml
 
@@ -142,19 +144,121 @@ def test_login_bootstrap_never_touches_the_normal_session_path(
     assert main(["--config", str(write_config()), "--login"]) == 0
 
 
-def test_mfa_required_surfaces_the_bootstrap_instruction(write_config, write_env, monkeypatch):
+def test_mfa_required_puts_the_fix_where_a_phone_shows_it(
+    write_config, write_env, monkeypatch
+):
+    """The alert used to be the whole exception text, and the instruction sat
+    at character 257. A phone banner shows about 120, so what the person read
+    was "Omnivox is asking for a 6-digit identity-validation code", which reads
+    like information rather than "your automation is dead, do this".
+    """
     from src.omnivox import MfaRequired
 
     notes = []
     write_env()
 
     def boom(*a, **k):
-        raise MfaRequired("run --login and tick appareil de confiance")
+        raise MfaRequired("Omnivox wants a code; run --login and tick the box")
 
     monkeypatch.setattr("src.omnivox_sync._open_session", boom)
     monkeypatch.setattr("src.omnivox_sync.notify", lambda *a, **k: notes.append((a, k)))
     assert main(["--config", str(write_config())]) == 2
-    assert "--login" in str(notes)
+
+    title, body = notes[-1][0][0], notes[-1][0][1]
+    assert "make login" in title, "the fix belongs in the title, not the body"
+    assert "make login" in (title + " " + body)[:120]
+
+
+def test_a_blocked_login_is_never_retried_against_omnivox(
+    write_config, write_env, tmp_repo, monkeypatch
+):
+    """Each attempt asks Omnivox to e-mail another six-digit code.
+
+    Three scheduled runs a day meant the real code arrived among a pile of
+    unrequested ones, it looked like credential stuffing from the school's
+    side, and the person found out from their inbox rather than from this.
+    """
+    from src.omnivox import MfaRequired
+
+    write_env()
+    config = write_config()
+    opened = []
+
+    def boom(*a, **k):
+        opened.append(1)
+        raise MfaRequired("Omnivox wants a code; run --login")
+
+    monkeypatch.setattr("src.omnivox_sync._open_session", boom)
+    monkeypatch.setattr("src.omnivox_sync.notify", lambda *a, **k: None)
+
+    assert main(["--config", str(config)]) == 2
+    assert len(opened) == 1, "the first run does attempt it"
+
+    for _ in range(5):
+        assert main(["--config", str(config)]) == 2
+    assert len(opened) == 1, "no further run may touch Omnivox"
+
+
+def test_the_alarm_is_loud_once_then_stops_shouting(
+    write_config, write_env, tmp_repo, monkeypatch
+):
+    """Three identical alerts a day for a week is how an alert becomes
+    wallpaper, which is why this went unnoticed for two days."""
+    from src.omnivox import MfaRequired
+
+    write_env()
+    config = write_config()
+    loud = []
+
+    monkeypatch.setattr(
+        "src.omnivox_sync._open_session",
+        lambda *a, **k: (_ for _ in ()).throw(MfaRequired("code needed")),
+    )
+    monkeypatch.setattr(
+        "src.omnivox_sync.notify",
+        lambda *a, **k: loud.append(k.get("critical", False)),
+    )
+
+    main(["--config", str(config)])
+    main(["--config", str(config)])
+    main(["--config", str(config)])
+    assert loud.count(True) == 1, f"one loud alert, got {loud}"
+
+
+def test_a_button_press_always_gets_an_answer(
+    write_config, write_env, tmp_repo, monkeypatch
+):
+    """Quiet on a schedule is right. Quiet when somebody just pressed the
+    button is a broken button."""
+    from src.omnivox import MfaRequired
+
+    write_env()
+    config = write_config()
+    notes = []
+
+    monkeypatch.setattr(
+        "src.omnivox_sync._open_session",
+        lambda *a, **k: (_ for _ in ()).throw(MfaRequired("code needed")),
+    )
+    monkeypatch.setattr("src.omnivox_sync.notify", lambda *a, **k: notes.append(a))
+
+    main(["--config", str(config)])
+    notes.clear()
+    main(["--config", str(config), "--manual"])
+    assert notes, "a manual run must say something"
+    assert "make login" in str(notes)
+
+
+def test_logging_in_clears_the_block(write_config, write_env, tmp_repo):
+    """Otherwise the fix works and the tool still refuses to run."""
+    from src.common import load_config
+    from src.omnivox_sync import block_login, clear_login_block, login_block
+
+    cfg = load_config(write_config(), repo_root=tmp_repo)
+    block_login(cfg, "MfaRequired")
+    assert login_block(cfg) is not None
+    clear_login_block(cfg)
+    assert login_block(cfg) is None
 
 
 # --- offline retry -----------------------------------------------------------
@@ -335,3 +439,77 @@ def test_the_lock_is_released_even_when_the_run_fails(
     assert main(["--config", str(write_config()), "--dry-run"]) == 2
     with run_lock(tmp_repo / "state" / "omnivox.lock"):
         pass
+
+
+# --- is it working? ----------------------------------------------------------
+
+
+def test_doctor_is_quiet_and_exits_zero_when_healthy(write_config, tmp_repo, capsys):
+    """Exit code, so a script can ask too, not only a person."""
+    from src.omnivox_sync import main as sync_main
+
+    (tmp_repo / ".env").write_text("OMNIVOX_USER=x\nOMNIVOX_PASS=y\n", encoding="utf-8")
+    (tmp_repo / "state" / "omnivox-profile").mkdir(parents=True, exist_ok=True)
+    (tmp_repo / "logs").mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    (tmp_repo / "logs" / "omnivox_sync.log").write_text(
+        f"{stamp},000 INFO    Sync finished: 0 downloaded\n", encoding="utf-8"
+    )
+    assert sync_main(["--config", str(write_config()), "--doctor"]) == 0
+    assert "healthy" in capsys.readouterr().out
+
+
+def test_doctor_reports_an_outage_that_predates_the_fix(write_config, tmp_repo, capsys):
+    """Anyone who updates in the middle of an outage has no block file, because
+    the version that broke never wrote one. The log still says what happened.
+    """
+    from src.omnivox_sync import main as sync_main
+
+    (tmp_repo / ".env").write_text("OMNIVOX_USER=x\nOMNIVOX_PASS=y\n", encoding="utf-8")
+    (tmp_repo / "state" / "omnivox-profile").mkdir(parents=True, exist_ok=True)
+    (tmp_repo / "logs").mkdir(parents=True, exist_ok=True)
+    (tmp_repo / "logs" / "omnivox_sync.log").write_text(
+        "2026-09-06 18:31:57,000 INFO    Sync finished: 0 downloaded\n"
+        "2026-09-07 07:35:52,000 ERROR   src.omnivox.MfaRequired: code needed\n",
+        encoding="utf-8",
+    )
+    assert sync_main(["--config", str(write_config()), "--doctor"]) == 1
+    assert "make login" in capsys.readouterr().out
+
+
+def test_a_stuck_sync_leaves_a_file_where_you_will_see_it(
+    write_config, write_env, tmp_repo, monkeypatch
+):
+    """A notification can be missed, swiped, or tuned out after the third
+    identical one. A file that appears in the folder you already use, and
+    syncs to your phone with the rest of it, cannot be."""
+    from src.omnivox import MfaRequired
+    from src.common import load_config
+    from src.omnivox_sync import ATTENTION_FILE
+
+    write_env()
+    config = write_config()
+    monkeypatch.setattr(
+        "src.omnivox_sync._open_session",
+        lambda *a, **k: (_ for _ in ()).throw(MfaRequired("code needed")),
+    )
+    monkeypatch.setattr("src.omnivox_sync.notify", lambda *a, **k: None)
+    main(["--config", str(config)])
+
+    cfg = load_config(config, repo_root=tmp_repo)
+    note = cfg.digest_dir() / ATTENTION_FILE
+    assert note.exists(), "nothing appeared in the folder they actually open"
+    body = note.read_text(encoding="utf-8")
+    assert "make login" in body
+    assert "appareil de confiance" in body, "the box people miss must be named"
+
+
+def test_the_attention_file_deletes_itself_once_fixed(write_config, tmp_repo):
+    from src.common import load_config
+    from src.omnivox_sync import ATTENTION_FILE, block_login, clear_login_block
+
+    cfg = load_config(write_config(), repo_root=tmp_repo)
+    block_login(cfg, "MfaRequired")
+    assert (cfg.digest_dir() / ATTENTION_FILE).exists()
+    clear_login_block(cfg)
+    assert not (cfg.digest_dir() / ATTENTION_FILE).exists()

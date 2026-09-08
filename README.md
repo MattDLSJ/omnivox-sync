@@ -133,6 +133,7 @@ fresh challenge.
 | `make sound-check` | Record from your mic and hear the untreated vs treated version. |
 | `make fetch-vad` | Download the Silero voice-activity model used by transcription. |
 | `make record-now` | Record the class happening right now, ignoring the at-school gate. |
+| `make doctor` | Say whether this is working, and what needs a person. No network. |
 | `make check-private` | Fail if anything personal is in the repo. `STAGED=1` for staged only, `HISTORY=1` to include commit messages. |
 | `make install-hooks` | Point git at `.githooks/`, so the check runs before every commit and on every commit message. |
 | `make public-snapshot` | Create the public repository, once. |

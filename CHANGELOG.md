@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v6 (2026-09-08)
+
+Fixes an outage that used to be silent: when Omnivox revokes the trusted-device cookie, the sync stops and every retry asks Omnivox to email another code. It now stops retrying until a person runs make login, drops an _ATTENTION.md next to your course folders explaining the fix, and adds make doctor to answer "is this working" without touching the network.
+
 ## v5 (2026-09-04)
 
 A missing .private-patterns blocked every ordinary run of the guard instead of only blocking a release. It now warns and carries on, and only publishing is refused.

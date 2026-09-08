@@ -34,7 +34,13 @@ from src.common import (
 )
 from src.convert import ConversionError, convert_to_pdf, is_uploadable, needs_conversion
 from src.finder import decorate
-from src.omnivox import OmnivoxCourse, OmnivoxDocument, OmnivoxError, OmnivoxSession
+from src.omnivox import (
+    MfaRequired,
+    OmnivoxCourse,
+    OmnivoxDocument,
+    OmnivoxError,
+    OmnivoxSession,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -92,6 +98,100 @@ def arm_retry(cfg: Config, reason: str, *, now: datetime | None = None) -> None:
 
 def clear_retry(cfg: Config) -> None:
     (cfg.repo_root / "state" / "retry_pending.json").unlink(missing_ok=True)
+
+
+# --------------------------------------------------------------------------
+# Login that needs a human
+# --------------------------------------------------------------------------
+#
+# Omnivox revokes the trusted-device cookie every so often, and once it does,
+# nothing automated can get past the identity check: it wants a six-digit code
+# from an e-mail. The scheduled job used to keep trying anyway, three times a
+# day, forever. Each attempt asked Omnivox to e-mail another code.
+#
+# That is worse than being stuck. It buries the real code among unrequested
+# ones, it looks like a credential-stuffing pattern from the school's side, and
+# the person only finds out because their inbox fills with codes rather than
+# because their own tool told them.
+
+_LOGIN_BLOCK = "login_required.json"
+
+
+def block_login(cfg: Config, reason: str, *, now: datetime | None = None) -> None:
+    """Stop attempting a login that we know needs a person, and say why."""
+    now = now or datetime.now()
+    path = cfg.repo_root / "state" / _LOGIN_BLOCK
+    existing = StateStore(path).read()
+    first = existing[0].get("since") if existing else now.isoformat(timespec="seconds")
+    attempts = (existing[0].get("attempts", 0) if existing else 0) + 1
+    StateStore(path).write([{
+        "since": first,
+        "last": now.isoformat(timespec="seconds"),
+        "attempts": attempts,
+        "reason": reason,
+    }])
+    _write_attention(cfg, login_block_summary(cfg))
+
+
+#: Written beside _digest.md while login is broken, and deleted the moment it
+#: works again. A notification can be missed, swiped away, or tuned out after
+#: the third identical one. A file that appears in the folder you already use,
+#: and that syncs to your phone with the rest of it, cannot be.
+ATTENTION_FILE = "_ATTENTION.md"
+
+
+def _write_attention(cfg: Config, summary: str) -> None:
+    try:
+        path = cfg.digest_dir() / ATTENTION_FILE
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "# Your school sync has stopped\n\n"
+            f"{summary}\n\n"
+            "Until then no new documents are arriving, and nothing else is\n"
+            "wrong: your files on disk are untouched and your password is\n"
+            "fine. Omnivox simply stopped trusting this computer, which it\n"
+            "does every so often, and only a person can answer its code.\n\n"
+            "## What to do\n\n"
+            "In a terminal, in the project folder:\n\n"
+            "    make login\n\n"
+            "A browser opens. Log in, type the six-digit code Omnivox e-mails\n"
+            "you, and tick **J'utilise un appareil de confiance** before you\n"
+            "validate. Missing that box is what brings this back.\n\n"
+            "This file deletes itself once the next sync succeeds.\n",
+            encoding="utf-8",
+        )
+    except OSError:
+        pass  # cosmetics must never be the reason a run dies
+
+
+def _clear_attention(cfg: Config) -> None:
+    try:
+        (cfg.digest_dir() / ATTENTION_FILE).unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def clear_login_block(cfg: Config) -> None:
+    (cfg.repo_root / "state" / _LOGIN_BLOCK).unlink(missing_ok=True)
+    _clear_attention(cfg)
+
+
+def login_block(cfg: Config) -> dict | None:
+    """The recorded block, or None when login is believed to work."""
+    records = StateStore(cfg.repo_root / "state" / _LOGIN_BLOCK).read()
+    return records[0] if records else None
+
+
+def login_block_summary(cfg: Config) -> str:
+    """One line a human can act on, short enough to survive a phone banner."""
+    block = login_block(cfg)
+    if not block:
+        return ""
+    since = str(block.get("since", ""))[:16].replace("T", " ")
+    return (
+        f"Run `make login` to fix. Nothing has synced since {since}, "
+        f"and every run until then asks Omnivox to e-mail you another code."
+    )
 
 
 def retry_due(cfg: Config, *, now: datetime | None = None) -> bool:
@@ -882,6 +982,89 @@ def _open_session(cfg, *, headed: bool, logger):
         yield session
 
 
+def _mfa_in_recent_log(cfg: Config, lines: int = 400) -> bool:
+    """Did the tail of the log end on an identity check rather than a sync?"""
+    path = cfg.repo_root / "logs" / "omnivox_sync.log"
+    if not path.exists():
+        return False
+    tail = path.read_text(encoding="utf-8", errors="replace").splitlines()[-lines:]
+    last_mfa = last_ok = -1
+    for i, line in enumerate(tail):
+        if "MfaRequired" in line:
+            last_mfa = i
+        if "Sync finished" in line:
+            last_ok = i
+    return last_mfa > last_ok
+
+
+def _doctor(cfg: Config) -> int:
+    """Is this thing actually working? Answer without touching the network.
+
+    It exists because the honest answer to "is it stuck" used to require
+    reading a log file, and nobody reads a log file. Exit 1 when something
+    needs a person, so a script can tell too.
+    """
+    problems = []
+
+    block = login_block(cfg)
+    if block:
+        problems.append(f"Omnivox login is blocked. {login_block_summary(cfg)}")
+    elif _mfa_in_recent_log(cfg):
+        # No block recorded, but the log says the last thing that happened was
+        # an identity check. That is the state of anyone who updated to this
+        # version in the middle of an outage, and of anyone whose block file
+        # was deleted along with the rest of state/.
+        problems.append(
+            "The last login attempt hit an Omnivox identity check, so nothing "
+            "is syncing. Run `make login` and tick "
+            "\u00abJ'utilise un appareil de confiance\u00bb."
+        )
+    else:
+        print("  login          ok, no identity check pending")
+
+    log_path = cfg.repo_root / "logs" / "omnivox_sync.log"
+    last = ""
+    if log_path.exists():
+        for line in log_path.read_text(encoding="utf-8", errors="replace").splitlines():
+            if "Sync finished" in line:
+                last = line[:19]
+    if last:
+        age = datetime.now() - datetime.strptime(last, "%Y-%m-%d %H:%M:%S")
+        hours = age.total_seconds() / 3600
+        state = "ok" if hours < 24 else f"STALE, {int(hours)}h ago"
+        print(f"  last sync      {state} ({last})")
+        if hours >= 24:
+            problems.append(
+                f"Nothing has synced in {int(hours)} hours. Last was {last}."
+            )
+    else:
+        problems.append("No sync has ever finished. Try: make dry-run")
+
+    env = cfg.repo_root / ".env"
+    if not env.exists():
+        problems.append("No .env. Copy .env.example and fill it in.")
+    else:
+        print("  credentials    .env present")
+
+    profile = cfg.repo_root / "state" / "omnivox-profile"
+    if not profile.exists():
+        problems.append("No browser profile yet. Run: make login")
+    else:
+        print("  browser        profile stored")
+
+    retry = StateStore(cfg.repo_root / "state" / "retry_pending.json").read()
+    if retry:
+        print("  retry          armed (it was offline; it will catch up)")
+
+    if not problems:
+        print("\nEverything looks healthy.")
+        return 0
+    print("\nNeeds you:\n")
+    for problem in problems:
+        print(f"  - {problem}")
+    return 1
+
+
 def _bootstrap_login(cfg: Config, log: logging.Logger) -> int:
     """Handle --login: open a visible browser and wait for the user to clear
     Omnivox's identity validation, so the profile becomes a trusted device.
@@ -908,6 +1091,7 @@ def _bootstrap_login(cfg: Config, log: logging.Logger) -> int:
         notify("School sync: login bootstrap failed", str(exc), critical=True, cfg=cfg.notify)
         return 2
 
+    clear_login_block(cfg)  # a person just did the thing that was blocking it
     print("\nLogged in. The session is stored in state/omnivox-profile/.")
     print("Scheduled headless runs will reuse it. Next: make dry-run")
     return 0
@@ -932,6 +1116,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--discover",
         action="store_true",
         help="print a paste-ready courses: block for config.yaml and exit",
+    )
+    parser.add_argument(
+        "--doctor",
+        action="store_true",
+        help="say whether this is working, and what needs a person",
     )
     group.add_argument("--course", metavar="CODE", help="limit the run to one course code")
     group.add_argument(
@@ -1011,8 +1200,28 @@ def _run(args, cfg: Config, log: logging.Logger) -> int:
     if args.manual and not args.login:
         notify("School sync started", "Checking Omnivox...", cfg=cfg.notify)
 
+    if args.doctor:
+        return _doctor(cfg)
+
     if args.login:
         return _bootstrap_login(cfg, log)
+
+    blocked = login_block(cfg)
+    if blocked:
+        # Do not touch Omnivox. Every attempt from here asks it to e-mail
+        # another six-digit code, which is how the real one gets buried.
+        summary = login_block_summary(cfg)
+        log.error("Login needs you: %s", summary)
+        print(f"BLOCKED: {summary}")
+        if args.manual:
+            # The failure that created this block already shouted once. Loud
+            # three times a day after that is how an alert becomes wallpaper,
+            # which is exactly how this went unnoticed for two days. A person
+            # who just pressed the button still gets an answer, and the state
+            # stays visible in the digest and in `make doctor`.
+            notify("Omnivox: run `make login`", summary, critical=True, cfg=cfg.notify)
+        block_login(cfg, str(blocked.get("reason", "")))
+        return 2
 
     if args.retry:
         if not retry_due(cfg):
@@ -1058,6 +1267,14 @@ def _run(args, cfg: Config, log: logging.Logger) -> int:
             arm_retry(cfg, f"{type(exc).__name__}: {exc}")
             log.info("Network failure, retry armed until %s", next_window(datetime.now()))
             return 3
+        if isinstance(exc, MfaRequired):
+            # Not a failure to retry. A person has to type a code, so stop
+            # asking Omnivox for one until they do.
+            block_login(cfg, str(exc).splitlines()[0])
+            summary = login_block_summary(cfg)
+            log.error("Login needs you: %s", summary)
+            notify("Omnivox: run `make login`", summary, critical=True, cfg=cfg.notify)
+            return 2
         notify(
             "School sync failed",
             f"{type(exc).__name__}: {exc}. See logs/omnivox_sync.log and logs/*.png",
@@ -1068,6 +1285,7 @@ def _run(args, cfg: Config, log: logging.Logger) -> int:
 
     if not args.dry_run:
         clear_retry(cfg)  # a real run supersedes any pending retry; a dry one does not
+        clear_login_block(cfg)  # we just logged in, so whatever blocked it is over
 
     prefix = "[dry-run] " if args.dry_run else ""
     print(f"{prefix}{result.summary()}")

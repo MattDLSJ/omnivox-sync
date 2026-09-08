@@ -198,6 +198,24 @@ them.
   from a course you can actually see in my folders. Do not make me guess what
   you are for.
 
+### When it stops working, and it will
+
+Omnivox revokes the trusted-device cookie every so often. Nothing automated can
+get past that: it wants a six-digit code from an e-mail, so a person has to do
+it. Tell me now, so I recognise it later rather than assuming the tool broke:
+
+- **The symptom is Omnivox e-mailing me codes I did not ask for.**
+- The fix is `make login`, ticking the trust box again.
+- While it is stuck, a file called `_ATTENTION.md` appears next to my course
+  folders explaining exactly that, and it deletes itself once the next sync
+  works.
+- `make doctor` answers "is this working" at any time without touching the
+  network, and says what needs me.
+
+The tool will not keep retrying while it is blocked, on purpose: every attempt
+asks Omnivox to e-mail another code, which buries the real one and looks like
+somebody attacking my account.
+
 ### Things that fail silently, so watch for them
 
 These raise no error. They quietly produce a wrong result, which is worse.
