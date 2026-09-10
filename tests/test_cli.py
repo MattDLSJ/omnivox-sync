@@ -736,3 +736,34 @@ def test_a_config_too_broken_to_read_still_gets_its_courses():
     merged, added, _kept = merge_courses("courses: [unclosed\n", [_course("A-1", "ONE")], "S")
     assert added == 1
     assert yaml.safe_load(merged)["courses"][0]["code"] == "A-1"
+
+
+def test_doctor_warns_about_an_install_in_a_disposable_folder(capsys):
+    """An agent cloned the whole project into its own scratch directory. The
+    credentials, the signed-in browser profile and a semester of documents all
+    end up in a folder that tool is free to clear, and the first sign would be
+    everything gone with no explanation."""
+    from pathlib import Path
+
+    from src.omnivox_sync import _warn_if_disposable_location
+
+    _warn_if_disposable_location(
+        Path(r"C:\Users\someone\.gemini\antigravity\scratch\omnivox-sync")
+    )
+    out = capsys.readouterr().out
+    assert "WARNING" in out and "permanent" in out
+
+
+def test_doctor_says_nothing_about_an_ordinary_location(capsys):
+    """A false positive here is a warning nobody can act on, printed forever."""
+    from pathlib import Path
+
+    from src.omnivox_sync import _warn_if_disposable_location
+
+    for ordinary in (
+        Path("/Users/someone/Documents/Programming/omnivox-sync"),
+        Path(r"C:\Users\someone\omnivox-sync"),
+        Path("/home/someone/projects/omnivox-sync"),
+    ):
+        _warn_if_disposable_location(ordinary)
+    assert capsys.readouterr().out == ""

@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v16 (2026-09-10)
+
+INSTALL.md now says where to put this before cloning it, and make doctor warns if it ended up somewhere temporary. An agent testing the setup cloned the whole project into its own scratch folder, which is where your credentials, your signed-in browser profile and your documents all live, and that folder can be cleared without warning.
+
 ## v15 (2026-09-10)
 
 Setting up is one command shorter and one copy-paste lighter: make login now finds your courses and writes them into config.yaml in the same browser session, instead of printing a block for you to paste. Discovery adds what is new and leaves courses you have already set up completely alone, including folder names, teachers and icons. The setup brief now only stops for the three things a person actually has to supply. And the semester name is worked out from the date rather than hardcoded, so an install in January no longer files a winter semester into a folder named after the autumn.

@@ -1101,6 +1101,40 @@ def _mfa_in_recent_log(cfg: Config, lines: int = 400) -> bool:
     return last_mfa > last_ok
 
 
+#: Path fragments that mean "something else may delete this without warning".
+#: An agent installed the whole project into its own scratch directory, where
+#: the credentials, the signed-in browser profile and a semester of documents
+#: all sat inside a folder its tool is free to clear.
+_DISPOSABLE = (
+    "/tmp/", "\\temp\\", "/temp/", "\\tmp\\",
+    "scratch", "appdata\\local\\temp",
+    ".gemini", ".cache", "downloads",
+)
+
+
+def _warn_if_disposable_location(repo_root: Path) -> None:
+    """Say so if this is installed somewhere that gets cleared out.
+
+    A warning and not a failure: somebody may have a good reason, and being
+    wrong about this must never be the thing that stops a sync. But finding
+    out by losing the browser profile and a semester of documents, with no
+    explanation, is worse than a line of output.
+    """
+    lowered = str(repo_root).lower().replace("\\", "\\")
+    hit = next((f for f in _DISPOSABLE if f.strip("/\\") in lowered), "")
+    if hit:
+        print(
+            f"  location       WARNING, this is installed under "
+            f"{repo_root}\n"
+            "                 That path looks temporary. Your credentials, "
+            "your signed-in\n"
+            "                 browser profile and your documents all live "
+            "here. Move the\n"
+            "                 whole folder somewhere permanent, then run "
+            "`make venv` again."
+        )
+
+
 def _doctor(cfg: Config) -> int:
     """Is this thing actually working? Answer without touching the network.
 
@@ -1109,6 +1143,8 @@ def _doctor(cfg: Config) -> int:
     needs a person, so a script can tell too.
     """
     problems = []
+
+    _warn_if_disposable_location(cfg.repo_root)
 
     if not (cfg.repo_root / ".git").exists():
         problems.append(

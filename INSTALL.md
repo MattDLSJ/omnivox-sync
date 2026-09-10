@@ -14,6 +14,16 @@ student, not a developer. Work through this in order and do not skip ahead.
 
 ### 1. Get the code with git. Not as a ZIP.
 
+**Ask me where to put it first, and suggest a plain, permanent folder** in my
+home directory: `C:\Users\<me>\omnivox-sync` on Windows,
+`~/omnivox-sync` on a Mac. Then clone it there.
+
+Not wherever your own working directory happens to be. An agent doing this
+cloned it into its own scratch folder, buried inside a hidden directory
+belonging to the AI tool itself. That folder ends up holding my credentials,
+my signed-in browser profile and a semester of my documents, and it is a
+folder that tool is free to clear. It is also one I would never find.
+
     git clone https://github.com/MattDLSJ/omnivox-sync.git
     cd omnivox-sync
 
