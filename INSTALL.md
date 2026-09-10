@@ -14,8 +14,8 @@ student, not a developer. Work through this in order and do not skip ahead.
 
 ### 1. Get the code with git. Not as a ZIP.
 
-    git clone https://github.com/MattDLSJ/school-automation-share.git school-automation
-    cd school-automation
+    git clone https://github.com/MattDLSJ/omnivox-sync.git
+    cd omnivox-sync
 
 The repository is public, so that needs no account, no sign-in and no
 credentials. If it fails, it is a network problem or a typo, not a permissions
@@ -38,7 +38,7 @@ the only files that took real work. Adopt the history in place instead, from
 inside that folder:
 
     git init
-    git remote add origin https://github.com/MattDLSJ/school-automation-share.git
+    git remote add origin https://github.com/MattDLSJ/omnivox-sync.git
     git fetch origin
     git reset --mixed origin/main
 

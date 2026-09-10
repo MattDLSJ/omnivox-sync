@@ -35,7 +35,7 @@ That is why it has never updated: there is no history to update. Nothing you
 have is lost, and the repair touches no file:
 
     git init
-    git remote add origin https://github.com/MattDLSJ/school-automation-share.git
+    git remote add origin https://github.com/MattDLSJ/omnivox-sync.git
     git fetch origin
     git reset --mixed origin/main
     git config core.fileMode false

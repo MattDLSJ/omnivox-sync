@@ -70,7 +70,7 @@ eventually.
    nothing I have set up needs to be lost:
 
        git init
-       git remote add origin https://github.com/MattDLSJ/school-automation-share.git
+       git remote add origin https://github.com/MattDLSJ/omnivox-sync.git
        git fetch origin
        git reset --mixed origin/main
 

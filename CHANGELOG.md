@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v9 (2026-09-09)
+
+The project is now called omnivox-sync, at github.com/MattDLSJ/omnivox-sync. GitHub redirects the old address, so an existing copy keeps updating and nothing needs to be re-cloned. If you are setting up fresh, use the new URL.
+
 ## v8 (2026-09-09)
 
 If you set this up before today, read CATCH-UP.md: it gets an existing copy onto this version without losing whatever your AI had to fix, and turns those fixes into a report. Windows installs no longer open on a wall of failing tests; the ones that only apply to another operating system now skip instead. A copy downloaded as a ZIP repairs itself, and correctly lands on the release it was downloaded from. make setup opens a browser page asking which parts of this you actually want, and make settings has the rest, including when the sync runs. NotebookLM has an off switch now, so opting out no longer leaves a folder of copies in every course. And the privacy guard refuses to certify a report when nothing is armed to check it, instead of passing it as clean.

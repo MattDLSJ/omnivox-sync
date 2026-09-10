@@ -66,7 +66,7 @@ def _upstream() -> str:
 
         return UPSTREAM
     except Exception:  # noqa: BLE001
-        return "https://github.com/MattDLSJ/school-automation-share.git"
+        return "https://github.com/MattDLSJ/omnivox-sync.git"
 
 
 def _is_zip_install() -> bool:

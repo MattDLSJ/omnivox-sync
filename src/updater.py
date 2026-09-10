@@ -34,7 +34,7 @@ INSTALL_TIMEOUT_S = 300
 #: Where this project comes from. The one place in the code that knows, and it
 #: exists for exactly one situation: a copy that was downloaded as a ZIP has no
 #: remote to ask, because it has no git at all.
-UPSTREAM = "https://github.com/MattDLSJ/school-automation-share.git"
+UPSTREAM = "https://github.com/MattDLSJ/omnivox-sync.git"
 
 
 @dataclass(frozen=True)
