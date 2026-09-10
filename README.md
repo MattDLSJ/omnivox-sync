@@ -1,36 +1,88 @@
-# school-automation
+# omnivox-sync
 
 > **Setting this up for the first time?** Open
 > [START-HERE.md](START-HERE.md), copy the whole file, and paste it into an AI
 > coding session opened in this folder. It walks the setup end to end on macOS
-> or Windows. Everything below is the reference for once it runs.
+> or Windows.
+>
+> **Already had it running before September 2026?** Open
+> [CATCH-UP.md](CATCH-UP.md) instead, which brings an existing copy forward
+> without losing whatever your AI had to fix.
 
-Automates the repetitive parts of a cégep workflow. **All four milestones are
-implemented.** Design doc:
-[2026-08-06-school-automation-design.md](docs/superpowers/specs/2026-08-06-school-automation-design.md).
+Omnivox is the portal nearly every cégep in Quebec runs, and it does not tell
+you when something appears. This checks for you, files everything where it
+belongs, and hands the result to an AI that can then answer questions about
+your own semester.
 
-## What it does
+## Everything it does
 
-Weekdays at 07:30 and 12:15, a `launchd` job:
+**All of it is optional.** `make setup` asks about the three that change the
+most; `make settings` has the rest, any time. Nothing here is decided
+permanently, and turning something off means it does not run at all rather
+than running quietly.
 
-1. **Syncs Omnivox LEA** (M1) — downloads every document it has not seen into the
-   matching course folder, converting Office formats to PDF.
-2. **Uploads to NotebookLM** (M2) — pushes new files into the notebook mapped to
-   that course, falling back to a `_to_upload/` staging folder on any failure.
-3. **Sends a digest** (M3) — one notification covering new documents, unread MIO,
-   "Quoi de neuf" items and upcoming dates, with important ones flagged first.
-   Silence means it checked and found nothing.
+### Getting your material
 
-A separate 5-minute job **records scheduled classes** (M4) and feeds the audio
-back through the same upload pipeline. It stays completely inert until
-`schedule:` is filled in.
+- **Course documents.** Every new file in LÉA, downloaded into a folder for
+  that course. It never overwrites and never deletes: a revised version
+  arrives beside the old one under a new name.
+- **Assignment briefs.** The Énoncés de travaux, which live in a different
+  place from the documents and are the ones with the instructions in them.
+- **Office to PDF.** `.docx` and `.pptx` converted on the way in, via
+  LibreOffice, so everything downstream sees one format.
+- **Textbooks.** Chapters out of i+ Interactif (Chenelière), a chapter at a
+  time. Needs a publisher account; off without one.
 
-| Milestone | Status |
-|---|---|
-| M1 Omnivox sync | done — verified live (165 documents, 7 courses) |
-| M2 NotebookLM upload | done — verified live (real upload + dedup + staging) |
-| M3 Digest | done — verified live (26 items, 4 flagged important) |
-| M4 Recorder | done, **inert** until `schedule:` is populated |
+### Making sense of it
+
+- **NotebookLM.** New files pushed into the notebook for that course, so you
+  can ask questions of your own material. Three settings: `auto`, `staging`
+  (copied to a folder you drag in yourself), or `off`.
+- **A digest.** One `_digest.md` across every course, covering new documents,
+  unread MIO, "Quoi de neuf" and upcoming dates, with the important ones
+  first. Ranked by simple rules, or by Gemini if you give it a key.
+- **Notifications.** One per sync, on your desktop or your phone via ntfy, or
+  none. Silence means it checked and found nothing.
+
+### Your semester, not just your files
+
+- **Your timetable as a calendar.** `make ics` turns your courses into a file
+  you import once, with every class, room, teacher and block.
+- **The calendar mirrored back.** Each course folder gets a `_horaire.md` of
+  what is coming, so a notebook pointed at that folder knows when your exams
+  are and what you wrote in the event.
+- **The start of semester, done by your AI.** This is the part with no button.
+  Once the sync has pulled your plans de cours, the AI you set this up with can
+  read them and fill your calendar with your evaluations, their dates and their
+  weightings, and pull the deadlines out of every assignment brief. It has your
+  actual course outlines in front of it, so it is reading them rather than
+  guessing. Ask it.
+
+### Lectures
+
+- **Recording and transcription.** Records the class you are in and transcribes
+  it with whisper.cpp, then feeds the text back through the same pipeline.
+  macOS only, needs a 1.5 GB model, and stays completely inert until you give
+  it a timetable. Off unless you ask.
+
+### Keeping itself working
+
+- **Folder presentation.** Consistent course folder names, a NotebookLM
+  shortcut pinned to the top of each, subfolders for recordings and textbook
+  pages, Finder tags and colours. macOS only; on Windows it logs a warning and
+  carries on.
+- **Self-updating.** Fast-forwards to the latest release at the start of each
+  scheduled sync, and refuses to touch anything if you have made your own
+  changes. Off with one setting.
+- **Reporting back.** `make report` writes up anything you had to fix, with
+  your OS, Python, college and a diff already filled in, and checks it for your
+  own private data before `make send-report` files it.
+- **Finding your college.** `make find-portal` turns the name of a cégep into
+  its Omnivox hostname and verifies it against the live site.
+- **Answering "is this working".** `make doctor`, without touching the network.
+
+By default it checks three times a day, at 07:30, 12:15 and 18:30. `make
+settings` changes that.
 
 ## Before you start
 
@@ -39,8 +91,9 @@ sync, conversion and upload are portable. Scheduling is `launchd`, the folder
 presentation uses Finder tags and `xattr`, and several paths assume Homebrew at
 `/opt/homebrew`, so on Windows you replace the scheduler with Task Scheduler
 and lose the folder colours, which the code degrades to a warning. The lecture
-recorder is macOS only and stays inert until `schedule:` is filled in. Scheduling is `launchd`, the folder presentation uses
-Finder tags and `xattr`, and several paths assume Homebrew at `/opt/homebrew`.
+recorder is macOS only and stays inert until `schedule:` is filled in. Tests
+that only apply to another platform skip rather than fail, so a handful of
+skips on Windows is correct.
 
 **It needs an Omnivox account, but not a particular one.** Omnivox is one
 product that nearly every cégep in Quebec runs, and the only thing that differs
@@ -416,3 +469,19 @@ Recording cannot continue through sleep. Audio is written in 5-minute segments,
 so a lid close costs at most one segment, and the next tick after wake resumes.
 
 Confirming your professors are okay with being recorded is on you, not the software.
+
+## Credit and licence
+
+Built by [MattDLSJ](https://github.com/MattDLSJ), a Sciences humaines student
+at cégep Édouard-Montpetit, for his own semester. It grew from one person's
+timetable into something that runs at other colleges, on other operating
+systems, in another language, and it did that because the people running it
+sent back what they had to fix. `make report` is how that works, and it is the
+most useful thing you can do with this project after installing it.
+
+MIT licensed: see [LICENSE](LICENSE). Use it, change it, build on it, ship it
+commercially if you like. The one condition is that the copyright notice
+travels with it.
+
+Not affiliated with Skytech Communications, who make Omnivox, or with your
+college. It signs in as you, reads what you can already see, and downloads it.

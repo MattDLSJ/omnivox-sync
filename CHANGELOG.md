@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v10 (2026-09-09)
+
+MIT licensed now, so you can legally use, change and build on this; before, with no licence at all, technically nobody could. The README lists every feature for the first time, grouped by what it is for, and says which are on by default and how to turn each one off.
+
 ## v9 (2026-09-09)
 
 The project is now called omnivox-sync, at github.com/MattDLSJ/omnivox-sync. GitHub redirects the old address, so an existing copy keeps updating and nothing needs to be re-cloned. If you are setting up fresh, use the new URL.
