@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v24 (2026-09-10)
+
+Two features nobody could find are now part of the setup. make books pulls chapters out of your i+ Interactif digital textbooks into the course folder, so the textbook ends up in the same notebook as the lecture slides. And the digest can be ranked by an AI instead of keyword rules if you add a Gemini key. Neither was mentioned anywhere an agent would read, so nobody knew they existed.
+
 ## v23 (2026-09-10)
 
 NotebookLM notebooks are created for you now, one per course, the first time there is something to put in one. Nothing to set up by hand, so the setup question is just yes or no. If creating one fails, files are copied to a folder as before and nothing is lost. Setting up also asks for your credentials properly at the end if the browser did not hand them back, instead of leaving you to edit a file.

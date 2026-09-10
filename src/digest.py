@@ -159,7 +159,17 @@ def rank(
         try:
             return rank_gemini(items, api_key)
         except Exception as exc:  # noqa: BLE001 - spec: fall back to rules on any error
-            log.warning("Gemini ranking failed (%s); falling back to keyword rules", exc)
+            # Name the model. This endpoint pins one by name, model names get
+            # retired, and a failure that only ever says "it failed" is how a
+            # dead one goes unnoticed for a whole semester behind a fallback
+            # that works fine.
+            log.warning(
+                "Gemini ranking failed (%s) at %s; falling back to keyword rules. "
+                "If this repeats, the model name in GEMINI_URL may have been "
+                "retired.",
+                exc,
+                GEMINI_URL.rsplit("/", 1)[-1].split(":")[0],
+            )
     elif backend == "gemini":
         log.warning("digest.ranking is 'gemini' but GEMINI_API_KEY is unset; using rules")
     return rank_rules(items)

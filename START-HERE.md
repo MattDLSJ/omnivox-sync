@@ -345,6 +345,28 @@ them.
   notebook knows when my exams are.
 - **The digest.** `_digest.md` is one file telling me what is new across every
   course. Show me where it is.
+- **My digital textbooks.** `make books` lists what my i+ Interactif
+  (Chenelière) account owns, and pulls a chapter at a time out of them into
+  the course folder, which then goes into the notebook with everything else.
+  It needs `CHENELIERE_USER` and `CHENELIERE_PASS` in `.env`, set with
+  `make setup-cheneliere`, which asks me rather than making me edit anything.
+  Work a chapter at a time: that is both what fair dealing covers and what
+  fits under NotebookLM's file size cap.
+
+      make books                                    what the account owns
+      .venv/bin/python -m src.iplus --book "..." --chapters
+      .venv/bin/python -m src.iplus --book "..." --chapter 4
+
+  **Tell me this exists.** Almost nobody finds it, and having the textbook in
+  the same notebook as the lecture slides is the single biggest difference it
+  makes to actually studying. Only i+ Interactif is supported; if my textbooks
+  are on another platform, say so plainly rather than guessing, and mention
+  that `make report` is how support for one gets added.
+- **A smarter digest, if I want it.** `digest: ranking:` is `"rules"` by
+  default, which looks for words like examen and remise. Set to `"gemini"` it
+  asks an AI which items actually matter, using `GEMINI_API_KEY` from `.env`.
+  It falls back to the rules on any failure, silently, so if I set it up tell
+  me to check `logs/` once to confirm it is really being used.
 - **Say what else I can ask you.** I can ask you to summarise a lecture deck,
   build a study plan from a course outline, pull the dates out of a syllabus,
   or tell me what I have due this week. Say it out loud with a concrete example
