@@ -27,6 +27,7 @@ from __future__ import annotations
 import html
 import http.server
 import secrets
+import sys
 import threading
 import urllib.parse
 import webbrowser
@@ -73,6 +74,7 @@ QUESTIONS = [
     {
         "key": "transcribe",
         "tier": "onboarding",
+        "macos_only": True,
         "title": "Lecture recording",
         "lede": "Record classes and transcribe them. This is the largest and most fragile part of the project, it is macOS only, and it needs a 1.5 GB speech model.",
         "kind": "choice",
@@ -87,6 +89,7 @@ QUESTIONS = [
     {
         "key": "notify.macos",
         "tier": "onboarding",
+        "macos_only": True,
         "title": "Notifications",
         "lede": "One notification per sync, covering what is new. Silence means it checked and found nothing.",
         "kind": "choice",
@@ -112,6 +115,7 @@ QUESTIONS = [
     {
         "key": "finder.color",
         "tier": "settings",
+        "macos_only": True,
         "title": "Folder colours",
         "lede": "Course folders get a Finder tag and colour so they are findable at a glance.",
         "kind": "choice",
@@ -214,11 +218,25 @@ PAGE = """<!doctype html>
 </style></head><body><div class="wrap">{body}</div></body></html>"""
 
 
-def questions_for(tier: str) -> list[dict]:
-    """"onboarding" is the short list. Anything else means all of them."""
-    if tier == "onboarding":
-        return [q for q in QUESTIONS if q.get("tier") == "onboarding"]
-    return list(QUESTIONS)
+def questions_for(tier: str, platform: str | None = None) -> list[dict]:
+    """"onboarding" is the short list. Anything else means all of them.
+
+    Questions that do nothing on this operating system are not asked. Lecture
+    recording is macOS only and stays inert everywhere else; desktop
+    notifications shell out to `osascript`, which does not exist off macOS, so
+    on Windows both answers produce the same nothing. Asking somebody to
+    choose between two identical outcomes, and telling them "macOS only" while
+    doing it, is worse than not asking.
+    """
+    platform = platform or sys.platform
+    chosen = (
+        [q for q in QUESTIONS if q.get("tier") == "onboarding"]
+        if tier == "onboarding"
+        else list(QUESTIONS)
+    )
+    if platform != "darwin":
+        chosen = [q for q in chosen if not q.get("macos_only")]
+    return chosen
 
 
 def _render_form(current: dict, token: str, tier: str, problem: str = "") -> str:
@@ -249,7 +267,7 @@ def _render_form(current: dict, token: str, tier: str, problem: str = "") -> str
             "autofocus required>"
             "</fieldset>"
         )
-    for question in questions_for(tier):
+    for question in questions_for(tier, sys.platform):
         chosen = str(current.get(question["key"], question["default"]))
         parts.append("<fieldset><legend>%s</legend>" % html.escape(question["title"]))
         parts.append("<p class=\"lede\">%s</p>" % html.escape(question["lede"]))
@@ -264,6 +282,22 @@ def _render_form(current: dict, token: str, tier: str, problem: str = "") -> str
         if question.get("note"):
             parts.append("<p class=\"note\">%s</p>" % html.escape(question["note"]))
         parts.append("</fieldset>")
+    if sys.platform != "darwin":
+        parts.append(
+            "<fieldset><legend>Not on this operating system</legend>"
+            "<p class=\"lede\">Two things are left out because they do nothing "
+            "here rather than because you would not want them. Lecture "
+            "recording is macOS only. Desktop notifications go through a macOS "
+            "command that does not exist on Windows or Linux.</p>"
+            "<p class=\"note\"><strong>You can still get notified on your "
+            "phone.</strong> That works on every platform. Put any random word "
+            "nobody would guess in <code>NTFY_TOPIC</code> in the "
+            "<code>.env</code> file, and subscribe to the same word in the "
+            "free ntfy app. It is not on this page because a topic has no "
+            "password: anyone who knows the word can read your notifications, "
+            "so it belongs in the file that never leaves your machine.</p>"
+            "</fieldset>"
+        )
     parts.append("<button type=\"submit\">Save these choices</button></form>")
     return "".join(parts)
 
@@ -437,8 +471,10 @@ def serve(config_path: Path, *, tier: str = "onboarding", open_browser: bool = T
         if tier == "onboarding"
         else "Opening your settings in your browser."
     )
-    print("If it does not open, or you are on a machine with no browser, open this:\n")
-    print(f"  {url}\n")
+    print("\n  " + url + "\n")
+    print("If no window appeared, open that address yourself.")
+    print("ANSWER IN THE BROWSER. Nothing typed anywhere else reaches this page;")
+    print("it is waiting on that form and will keep waiting until you submit it.\n")
     if open_browser:
         try:
             webbrowser.open(url)
@@ -462,7 +498,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default=str(repo_root / "config.yaml"))
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument(
-        "--all", action="store_true", help="every setting, not just the first three"
+        "--all", action="store_true", help="every setting, not just the first few"
+    )
+    parser.add_argument(
+        "--timeout", type=int, default=TIMEOUT_S, help="seconds to wait for an answer"
     )
     args = parser.parse_args(argv)
 
@@ -471,6 +510,7 @@ def main(argv: list[str] | None = None) -> int:
             Path(args.config),
             tier="settings" if args.all else "onboarding",
             open_browser=not args.no_browser,
+            timeout_s=args.timeout,
         )
     except FileNotFoundError as exc:
         print(str(exc))

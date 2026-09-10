@@ -90,6 +90,13 @@ this chat: a settings page asking which college I attend and which three
 features I want, and then the browser it opens for me to sign in to Omnivox.
 Everything else it does by itself.
 
+**When it opens a page, do not repeat its questions to me here.** Print the
+address it gives you and stop. Restating the options in chat invites me to
+answer in chat, and an answer typed in chat reaches nothing: the page is still
+sitting there waiting for a form submission, and now we are both waiting for
+each other. Say "answer it in the browser and tell me when you have", and
+wait.
+
 **If you cannot open a window on my screen, say so and hand it to me.** Some
 agent tools run commands in a sandbox, where a browser launches somewhere I
 will never see it: the command reports success, nothing appears, and I sit

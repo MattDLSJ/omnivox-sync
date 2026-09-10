@@ -275,3 +275,43 @@ def test_a_wrong_college_does_not_lose_the_answers_already_given(config, monkeyp
         )
     finally:
         served["restore"]()
+
+
+# ---------------------------------------------------------------------------
+# Questions that do nothing here are not asked
+#
+# A tester on Windows was shown "Lecture recording (macOS only)" and
+# "Notifications (macOS only)" and reasonably objected. The text was accurate
+# and the questions were still wrong: both answers produce the same nothing
+# there, so it was asking somebody to choose between two identical outcomes
+# and telling them so in the same breath.
+# ---------------------------------------------------------------------------
+
+
+def test_macos_only_questions_are_not_asked_on_windows():
+    keys = {q["key"] for q in questions_for("onboarding", "win32")}
+    assert "transcribe" not in keys, "lecture recording is macOS only and inert elsewhere"
+    assert "notify.macos" not in keys, "it shells out to osascript, which is not there"
+
+
+def test_the_ones_that_do_work_are_still_asked_on_windows():
+    keys = {q["key"] for q in questions_for("onboarding", "win32")}
+    assert "notebooklm.mode" in keys
+
+
+def test_macos_gets_all_of_them():
+    keys = {q["key"] for q in questions_for("onboarding", "darwin")}
+    assert keys == {"notebooklm.mode", "transcribe", "notify.macos"}
+
+
+def test_folder_colours_are_not_offered_off_macos():
+    """Finder tags do nothing on Windows and log a warning per course folder."""
+    keys = {q["key"] for q in questions_for("settings", "linux")}
+    assert "finder.color" not in keys
+    assert "sync_times" in keys, "the ones that work everywhere must survive the filter"
+
+
+def test_windows_onboarding_is_shorter_than_macos():
+    assert len(questions_for("onboarding", "win32")) < len(
+        questions_for("onboarding", "darwin")
+    )

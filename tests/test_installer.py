@@ -64,6 +64,8 @@ def test_the_handover_names_what_is_left(installer, capsys):
 def test_running_it_without_a_terminal_stops_before_opening_a_browser():
     """End to end, the way an agent would run it: it must reach the handover
     and never launch anything with a window."""
+    import os
+
     got = subprocess.run(
         [sys.executable, str(REPO / "install.py"), "--inside-venv"],
         cwd=str(REPO),
@@ -71,6 +73,10 @@ def test_running_it_without_a_terminal_stops_before_opening_a_browser():
         capture_output=True,
         text=True,
         timeout=300,
+        # The settings page legitimately waits a quarter of an hour for
+        # somebody to open it. Waiting that long to prove a code path is a
+        # test nobody runs.
+        env={**os.environ, "OMNIVOX_SETUP_TIMEOUT": "1"},
     )
     assert got.returncode == 3, got.stdout[-2000:]
     # Whitespace-insensitive: the phrase is wrapped across a line in the real

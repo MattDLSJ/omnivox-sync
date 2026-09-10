@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v22 (2026-09-10)
+
+On Windows the setup no longer asks about lecture recording or desktop notifications, because neither does anything there; it says instead that phone notifications work everywhere and how to switch them on. Your agent should now print the settings page address and stop rather than repeating the questions in chat, where an answer reaches nothing. And the settings page works even when an agent is driving, so only the Omnivox sign-in still needs you at the keyboard.
+
 ## v21 (2026-09-10)
 
 Setting up now stops twice instead of three times, and both are browser windows rather than one being a terminal prompt. The settings page asks which college you attend along with the three feature questions, resolves it against the live Omnivox, and only then opens the sign-in. Typing a name it cannot find tells you why and keeps the answers you already gave.

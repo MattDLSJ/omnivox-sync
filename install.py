@@ -249,6 +249,21 @@ def set_portal() -> None:
 #: sitting at the machine. Not a failure.
 NEEDS_A_PERSON = 3
 
+#: How long the settings page waits. Generous when somebody is at the keyboard,
+#: shorter when an agent is driving: if the address cannot be reached from
+#: wherever they are, half an hour of silence is a poor way to find that out.
+TIMEOUT_INTERACTIVE = 1800
+TIMEOUT_DRIVEN = 900
+
+
+def _page_timeout(interactive: bool) -> int:
+    """Overridable, because a test that has to wait fifteen real minutes to
+    prove a code path is a test nobody runs."""
+    override = os.environ.get("OMNIVOX_SETUP_TIMEOUT")
+    if override and override.isdigit():
+        return int(override)
+    return TIMEOUT_INTERACTIVE if interactive else TIMEOUT_DRIVEN
+
 
 def _this_is_a_person() -> bool:
     """Is a human at this terminal, or is an agent driving it?
@@ -294,10 +309,25 @@ def sign_in() -> None:
         die("the sign-in did not complete. Run the installer again to retry.")
 
 
-def choose_settings() -> None:
+def _portal_is_set() -> bool:
+    import yaml
+
+    try:
+        loaded = yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8")) or {}
+    except Exception:  # noqa: BLE001
+        return False
+    return bool((loaded.get("school") or {}).get("portal"))
+
+
+def choose_settings(*, interactive: bool = True) -> None:
     step("Your college, and which parts of this you want")
-    print("    A page opens in your browser. Four questions, then it closes.\n")
-    run([str(VENV_PYTHON), "-m", "src.setup_page"])
+    print("    A page opens in your browser, with its address printed below in")
+    print("    case it does not. Answer it THERE: nothing typed anywhere else")
+    print("    reaches it.\n")
+    run([
+        str(VENV_PYTHON), "-m", "src.setup_page",
+        "--timeout", str(_page_timeout(interactive)),
+    ])
 
 
 def first_sync() -> None:
@@ -343,18 +373,27 @@ def main(argv: list[str]) -> int:
     make_config_files()
     check_converters()
 
-    if not _this_is_a_person():
-        # Everything from here opens a window. An agent running this in a
-        # sandbox gets a browser nobody can see, reports that it launched, and
-        # leaves its user staring at a screen where nothing happened.
-        return _hand_over("one settings page, then signing in to Omnivox")
+    # The settings page runs either way. It is a local web page, so what it
+    # needs is a browser the PERSON can reach, not one this process can open,
+    # and printing the address is enough for that. Only the Omnivox sign-in
+    # genuinely needs a window on this desktop, because Playwright drives it.
+    person = _this_is_a_person()
+    choose_settings(interactive=person)
+    if person:
+        set_portal()
 
-    # The settings page first, and it asks which college too. Two windows
-    # instead of a terminal prompt plus two windows, and the college has to be
-    # known before the sign-in anyway, because it decides which Omnivox to
-    # open.
-    choose_settings()
-    set_portal()
+    if not _portal_is_set():
+        if not person:
+            return _hand_over(
+                "the settings page, which was not answered, and then signing in"
+            )
+        warn("no college is set, so signing in would open the wrong Omnivox.")
+        warn("Run the installer again and answer the settings page.")
+        return NEEDS_A_PERSON
+
+    if not person:
+        return _hand_over("signing in to Omnivox")
+
     sign_in()
     first_sync()
     finish()

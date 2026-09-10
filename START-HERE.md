@@ -264,10 +264,18 @@ the same session, so there is usually nothing to do at step 6.
 
     make setup
 
-A page opens in my browser with three questions: whether I use NotebookLM,
-whether I want lecture recording, and whether I want notifications. It writes
-my answers into `config.yaml`. Do not ask me these in the chat instead; the
-page explains what each choice costs, which a chat message does not.
+A page opens in my browser and asks which college I attend and which features
+I want. It writes my answers into `config.yaml`.
+
+**Do not repeat its questions to me in the chat.** Print the address and stop.
+Restating the options invites me to answer here, and an answer typed here
+reaches nothing: the page is still waiting on a form submission, and now we
+are both waiting for each other. The page also explains what each choice
+costs, which a chat message does not.
+
+It only asks about things that do something on my operating system. On Windows
+that is two questions, not four, because lecture recording is macOS only and
+desktop notifications go through a macOS command that does not exist there.
 
 Everything else has a sensible default and lives behind `make settings`, which
 I can open any time. Mention that it exists, then move on.
