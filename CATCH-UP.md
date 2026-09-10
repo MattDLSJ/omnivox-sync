@@ -64,6 +64,21 @@ cannot be lost:
 
 The patch file is the belt and the stash is the braces. Do not skip either.
 
+### Before step 3, a thing NOT to do: rename the folder
+
+The project is called `omnivox-sync` now. My folder is probably still called
+something else, and **that is fine: leave it alone.** The two names have no
+reason to match, and renaming the folder breaks real things that hold absolute
+paths to it:
+
+- the scheduled job, whose `launchd` plist was written with the old path in it
+- the virtual environment, whose scripts have the old path baked into them
+- the "Sync School" button, if I have one
+
+None of that is worth a tidier folder name. If I ask you to rename it anyway,
+tell me it means running `make venv` and `make install-launchd` again
+afterwards, and only do it if I still want to.
+
 ### 3. Update
 
     git pull --ff-only

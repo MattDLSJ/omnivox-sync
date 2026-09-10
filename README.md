@@ -1,13 +1,26 @@
 # omnivox-sync
 
-> **Setting this up for the first time?** Open
-> [START-HERE.md](START-HERE.md), copy the whole file, and paste it into an AI
-> coding session opened in this folder. It walks the setup end to end on macOS
-> or Windows.
+> ### Installing this? Start here, not with the green button.
 >
-> **Already had it running before September 2026?** Open
-> [CATCH-UP.md](CATCH-UP.md) instead, which brings an existing copy forward
-> without losing whatever your AI had to fix.
+> Give this link to an AI coding agent and let it work:
+>
+> **https://github.com/MattDLSJ/omnivox-sync/blob/main/INSTALL.md**
+>
+> That file is the whole handoff: it tells the agent how to get the code and
+> what to do next. **Clone it with git; do not download the ZIP.** A ZIP has
+> no `.git`, which means it can never receive a fix and can never send one,
+> and nothing about it looks wrong until the day that matters.
+>
+>     git clone https://github.com/MattDLSJ/omnivox-sync.git
+>     cd omnivox-sync
+>
+> Once you have the folder, [START-HERE.md](START-HERE.md) is the long brief
+> the agent follows. [INSTALL.md](INSTALL.md) points it there.
+>
+> **Already had this running before September 2026?** Use
+> [CATCH-UP.md](CATCH-UP.md) instead. It brings an existing copy forward
+> without losing whatever your AI had to fix, and turns those fixes into a
+> report.
 
 Omnivox is the portal nearly every cégep in Quebec runs, and it does not tell
 you when something appears. This checks for you, files everything where it

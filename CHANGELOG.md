@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v11 (2026-09-09)
+
+The repo's front page now tells you how to get the code, so handing somebody just the repository link is enough. It also says plainly not to use the Download ZIP button, which cannot receive fixes or send them. If you are catching up an older install, do not rename your folder to match the new project name: the scheduler and the virtual environment hold absolute paths to it.
+
 ## v10 (2026-09-09)
 
 MIT licensed now, so you can legally use, change and build on this; before, with no licence at all, technically nobody could. The README lists every feature for the first time, grouped by what it is for, and says which are on by default and how to turn each one off.
