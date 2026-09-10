@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v23 (2026-09-10)
+
+NotebookLM notebooks are created for you now, one per course, the first time there is something to put in one. Nothing to set up by hand, so the setup question is just yes or no. If creating one fails, files are copied to a folder as before and nothing is lost. Setting up also asks for your credentials properly at the end if the browser did not hand them back, instead of leaving you to edit a file.
+
 ## v22 (2026-09-10)
 
 On Windows the setup no longer asks about lecture recording or desktop notifications, because neither does anything there; it says instead that phone notifications work everywhere and how to switch them on. Your agent should now print the settings page address and stop rather than repeating the questions in chat, where an answer reaches nothing. And the settings page works even when an agent is driving, so only the Omnivox sign-in still needs you at the keyboard.

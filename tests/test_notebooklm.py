@@ -54,12 +54,23 @@ def test_build_upload_index_ignores_incomplete_records():
 
 
 class FakeUploader:
-    def __init__(self, notebooks=None, fail_on=None, list_raises=None):
+    def __init__(self, notebooks=None, fail_on=None, list_raises=None,
+                 create_raises=None):
         self._notebooks = notebooks if notebooks is not None else list(NBS)
         self._fail_on = fail_on or set()
         self._list_raises = list_raises
+        self._create_raises = create_raises
         self.added: list[tuple[str, str]] = []
         self.videos: list[tuple[str, str, str]] = []
+        self.created: list[str] = []
+
+    def create_notebook(self, title):
+        if self._create_raises:
+            raise self._create_raises
+        self.created.append(title)
+        made = Notebook(id=f"new-{len(self.created)}", title=title)
+        self._notebooks.append(made)
+        return made
 
     def list_notebooks(self):
         if self._list_raises:
@@ -151,15 +162,57 @@ def test_oversize_file_is_skipped_not_uploaded(queued, monkeypatch):
     )
 
 
-def test_missing_notebook_stages_the_file_and_continues(queued):
+def test_a_missing_notebook_is_created_rather_than_staged(queued):
+    """Matching is by name and nothing used to create one, so a missing
+    notebook meant every file for that course was quietly copied into a folder
+    for as long as it took somebody to notice and go and make it by hand. The
+    setup had to warn people about that, which is a strange thing to have to
+    warn anybody about."""
     cfg, src = queued
     up = FakeUploader(notebooks=[Notebook(id="x", title="Some other notebook")])
+
     result = upload_queue(cfg, up)
+
+    assert up.created == [cfg.courses[0].notebook]
+    assert len(up.added) == 1
+    assert result.staged == []
+    assert result.errors == []
+    assert not (cfg.folder_for(cfg.courses[0]) / "_to_upload" / "ch01.pdf").exists()
+
+
+def test_a_notebook_is_created_once_and_then_reused(queued):
+    """Creating one per file would leave a course with a notebook each."""
+    cfg, src = queued
+    second = Path(src).parent / "ch02.pdf"
+    second.write_bytes(b"second")
+    from src.common import StateStore
+
+    store = StateStore(cfg.repo_root / "state" / "upload_queue.json")
+    queue = store.read()
+    queue.append(dict(queue[0], filename="ch02.pdf", path=str(second)))
+    store.write(queue)
+
+    up = FakeUploader(notebooks=[])
+    upload_queue(cfg, up)
+
+    assert up.created.count(cfg.courses[0].notebook) == 1
+
+
+def test_a_notebook_that_cannot_be_created_still_stages_the_file(queued):
+    """The staging fallback is not gone, it is just no longer the first
+    answer: a file must never be lost because NotebookLM said no."""
+    cfg, src = queued
+    up = FakeUploader(
+        notebooks=[Notebook(id="x", title="Some other notebook")],
+        create_raises=UploadError("quota exceeded"),
+    )
+
+    result = upload_queue(cfg, up)
+
     assert up.added == []
     assert len(result.staged) == 1
     assert len(result.errors) == 1
-    staged = cfg.folder_for(cfg.courses[0]) / "_to_upload" / "ch01.pdf"
-    assert staged.exists()
+    assert (cfg.folder_for(cfg.courses[0]) / "_to_upload" / "ch01.pdf").exists()
 
 
 def test_upload_failure_stages_that_file(queued):
@@ -320,8 +373,24 @@ def test_a_failing_video_is_reported_and_stays_queued(queued_video):
     assert result.uploaded == []
 
 
-def test_a_video_with_no_matching_notebook_is_reported(queued_video):
+def test_a_video_with_no_matching_notebook_gets_one_made(queued_video):
     cfg = queued_video
-    result = upload_queue(cfg, FakeUploader(notebooks=[]))
+    up = FakeUploader(notebooks=[])
+
+    result = upload_queue(cfg, up)
+
+    assert up.created, "a missing notebook is created, not reported and dropped"
+    assert result.errors == []
+
+
+def test_a_video_is_reported_when_the_notebook_cannot_be_made(queued_video):
+    """A video has nothing to stage on disk, so if the notebook cannot exist
+    there is genuinely nowhere for it to go, and saying so is the whole
+    remaining job."""
+    cfg = queued_video
+    up = FakeUploader(notebooks=[], create_raises=UploadError("quota exceeded"))
+
+    result = upload_queue(cfg, up)
+
     assert any("notebook not found" in e.get("error", "") for e in result.errors)
     assert result.uploaded == []

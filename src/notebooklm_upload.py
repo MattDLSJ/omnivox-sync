@@ -198,6 +198,34 @@ class NlmUploader:
             if item.get("id")
         ]
 
+    def create_notebook(self, title: str) -> Notebook:
+        """Make a notebook and return it.
+
+        This is why "notebook not found" stopped being a dead end. Matching is
+        by NAME and nothing used to create one, so a missing notebook meant
+        every file for that course was staged into a folder, silently, for as
+        long as it took somebody to notice and go and make it by hand. The
+        setup had to warn people about that, which is a strange thing to have
+        to warn anybody about.
+        """
+        proc = self._run(["notebook", "create", title, "--json"], timeout=180)
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "").strip()[:300]
+            if "auth" in detail.lower() or "login" in detail.lower():
+                raise AuthError(f"nlm is not authenticated: {detail}. Run: nlm login")
+            raise UploadError(f"`nlm notebook create` failed: {detail}")
+        try:
+            raw = json.loads(proc.stdout)
+        except json.JSONDecodeError as exc:
+            raise UploadError(
+                f"Could not parse `nlm notebook create` output: {exc}"
+            ) from exc
+        # The CLI has returned both a bare object and a single-item list.
+        item = raw[0] if isinstance(raw, list) and raw else raw
+        if not isinstance(item, dict) or not item.get("id"):
+            raise UploadError(f"`nlm notebook create` returned no id: {proc.stdout[:200]}")
+        return Notebook(id=str(item["id"]), title=str(item.get("title", title)))
+
     def list_sources(self, notebook_id: str) -> list[tuple[str, str]]:
         """(id, title) for every source in a notebook."""
         proc = self._run(["source", "list", notebook_id, "--json"], timeout=180)
@@ -389,12 +417,18 @@ def _drain(cfg, uploader, dry_run, only_course, log, result) -> UploadResult:
                 continue
             notebook = find_notebook(notebooks, notebook_name)
             if notebook is None:
-                log.error("No notebook named %r for %s", notebook_name, filename)
-                result.errors.append(
-                    {"scope": f"{course_code}/{filename}",
-                     "error": f"notebook not found: {notebook_name}"}
-                )
-                continue
+                try:
+                    notebook = uploader.create_notebook(notebook_name)
+                    notebooks.append(notebook)
+                    log.info("Created NotebookLM notebook %r", notebook_name)
+                except UploadError as exc:
+                    log.error("No notebook named %r for %s: %s",
+                              notebook_name, filename, exc)
+                    result.errors.append(
+                        {"scope": f"{course_code}/{filename}",
+                         "error": f"notebook not found and not created: {exc}"}
+                    )
+                    continue
             try:
                 uploader.add_youtube(notebook.id, youtube, filename)
             except UploadError as exc:
@@ -439,18 +473,31 @@ def _drain(cfg, uploader, dry_run, only_course, log, result) -> UploadResult:
 
         notebook = find_notebook(notebooks or [], notebook_name)
         if notebook is None:
-            log.error("Notebook %r not found; staging %s", notebook_name, filename)
-            result.errors.append(
-                {
-                    "scope": f"{course_code}/{filename}",
-                    "error": f"notebook not found: {notebook_name!r}",
-                }
-            )
-            staged = stage_file(path, folder)
-            result.staged.append(dict(item, staged_path=str(staged)))
-            new_records.append(_record(course_code, filename, notebook_name, "", "staging"))
-            completed_keys.add(key)
-            continue
+            # Make it, rather than staging every file for this course until
+            # somebody notices and creates it by hand. Kept in `notebooks` so
+            # the rest of this run finds it without asking again.
+            try:
+                notebook = uploader.create_notebook(notebook_name)
+                if notebooks is None:
+                    notebooks = []
+                notebooks.append(notebook)
+                log.info("Created NotebookLM notebook %r", notebook_name)
+            except UploadError as exc:
+                log.error("Could not create notebook %r; staging %s: %s",
+                          notebook_name, filename, exc)
+                result.errors.append(
+                    {
+                        "scope": f"{course_code}/{filename}",
+                        "error": f"could not create notebook {notebook_name!r}: {exc}",
+                    }
+                )
+                staged = stage_file(path, folder)
+                result.staged.append(dict(item, staged_path=str(staged)))
+                new_records.append(
+                    _record(course_code, filename, notebook_name, "", "staging")
+                )
+                completed_keys.add(key)
+                continue
 
         try:
             if replace:

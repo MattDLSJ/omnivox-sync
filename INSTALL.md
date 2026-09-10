@@ -122,6 +122,13 @@ author never hit. When something breaks and you work around it, `make report`
 writes up what happened and `make send-report` sends it. That is not
 bookkeeping: it is how the fix reaches the next person.
 
-**Never put a password in a chat message or in a file yourself.** When
-credentials are needed, tell me to type them into `.env` myself, then confirm
-the file is filled without printing what is in it.
+**Never put a password in a chat message, and never open an editor for one.**
+The project asks for credentials itself, with a prompt that validates the
+value and writes it without it passing through a shell, a history file or you:
+
+    make setup-omnivox
+
+Use that. Do not open `.env` in Notepad, do not paste a template with
+`your_password` in it, and do not invent a way round it. One agent did all
+three, and a template full of placeholders is a thing people copy in
+literally.

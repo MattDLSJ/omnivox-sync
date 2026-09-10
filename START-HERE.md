@@ -423,13 +423,14 @@ this is not a git repository, go back to confirmation 1.
 You do not ask me these. The page does, and it explains each one. This is here
 so that you can answer if I ask you about them.
 
-**NotebookLM.** `"off"` does nothing at all, for somebody who does not use it.
-`"staging"` copies new files into `<course>/_to_upload/` for me to drag in
-myself, which keeps all the downloading, converting and filing and loses only
-the drag. `"auto"` needs a separate command-line tool installed and a notebook
-created by hand per course, named exactly as in `config.yaml`; if that
-notebook is missing it silently stages instead, which is why nobody should
-start there.
+**NotebookLM.** `"auto"` uploads each course's documents into its own
+notebook, and **creates that notebook the first time there is something to put
+in it**, so there is nothing to set up by hand. It needs the `nlm`
+command-line tool installed and signed in; without it, files are copied into
+`<course>/_to_upload/` instead and nothing is lost. `"off"` does none of it.
+`"staging"` is still a setting, for somebody who wants the copies without the
+uploads, but it is no longer offered at setup because it was being handed to
+people as the way to opt out.
 
 **Lecture recording.** macOS only, needs a 1.5 GB speech model, and stays
 completely inert until a class timetable is in `config.yaml`. Off unless I ask.

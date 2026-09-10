@@ -296,6 +296,42 @@ def _hand_over(remaining: str) -> int:
     return NEEDS_A_PERSON
 
 
+def _credentials_present() -> bool:
+    sys.path.insert(0, str(ROOT))
+    from src.common import load_credentials
+
+    user, password = load_credentials(ROOT, required=False)
+    return bool(user and password)
+
+
+def ensure_credentials() -> None:
+    """Ask for them properly, if signing in did not already capture them.
+
+    `make login` offers to keep what was typed into the browser, but that can
+    come back empty: a portal that asks for the number and the password on two
+    separate screens never has both on the page at once, and a password
+    manager may fill the form in a way the page does not report. Without a
+    fallback here, the next thing that happens is an agent inventing one, and
+    the one it invented was opening Notepad and handing over a template with
+    `your_password` written in it.
+
+    scripts/set_env.py asks, validates, and writes. The value never goes
+    through a shell, never appears in history, and is never shown.
+    """
+    if _credentials_present():
+        return
+    step("Saving your credentials so scheduled runs can sign in")
+    print("    The signed-in session does not survive the browser closing, so a")
+    print("    scheduled run signs in from scratch every time and needs these.")
+    print("    They go straight into .env on this machine. Nothing prints them.\n")
+    if not sys.stdin.isatty():
+        warn("not a terminal, so this cannot ask. Later, run:")
+        warn("    make setup-omnivox")
+        return
+    for key in ("OMNIVOX_USER", "OMNIVOX_PASS"):
+        run([str(VENV_PYTHON), str(ROOT / "scripts" / "set_env.py"), key])
+
+
 def sign_in() -> None:
     step("Signing in to Omnivox")
     print("    A browser window is about to open. Type your student number and")
@@ -395,6 +431,7 @@ def main(argv: list[str]) -> int:
         return _hand_over("signing in to Omnivox")
 
     sign_in()
+    ensure_credentials()
     first_sync()
     finish()
     return 0
