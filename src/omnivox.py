@@ -1244,24 +1244,95 @@ class OmnivoxSession:
         finally:
             page.close()
 
+    #: The portal's MIO entry point. NOT `a[data-type-service='MIO']`, which is
+    #: what this used to look for: that attribute is empty on both MIO links,
+    #: so the selector matched nothing, waited its full timeout and gave up.
+    #: The digest has been quietly missing MIO whenever it took that path.
+    _MIO_ENTRY = "/intr/Module/ServicesExterne/RedirigeMio.ashx"
+
+    def _open_mio_list(self):
+        """Navigate to MIO and return the frame holding the message list.
+
+        Reading the list changes nothing: read state lives on the message, and
+        the list is just a table.
+        """
+        try:
+            self.page.goto(
+                self.portal.home + self._MIO_ENTRY, wait_until="domcontentloaded"
+            )
+            self.page.wait_for_timeout(6000)
+        except Exception as exc:  # noqa: BLE001
+            self.log.warning("Could not open MIO: %s", exc)
+            return None
+        # "/MioListe.aspx" with the slash: the frameset around it is called
+        # MioListeDetailFrameset.aspx and matches a bare "MioListe".
+        frame = next(
+            (f for f in self.page.frames if "/MioListe.aspx" in (f.url or "")), None
+        )
+        if frame is None:
+            self.log.warning("MIO list frame not found; skipping MIO for this run")
+        return frame
+
+    def list_mio(self) -> list[dict]:
+        """Every message in the inbox: who, what, when, and the preview.
+
+        Nothing here opens a message, so nothing is marked read. The preview
+        LEA puts in the list is long enough to carry the instruction most of
+        the time: "Pour le prochain cours, vous devez lire la section 2.5.3 du
+        manuel et" is a preview, not a body.
+        """
+        frame = self._open_mio_list()
+        if frame is None:
+            return []
+        rows = frame.evaluate(
+            r"""() => {
+          const clean = e => (e.textContent||'').replace(/\s+/g,' ').trim();
+          const out = [];
+          for (const tr of document.querySelectorAll('tr.norm')) {
+            const cells = [...tr.querySelectorAll('td')].map(clean).filter(Boolean);
+            if (!cells.length) continue;
+            const dot = tr.querySelector('[data-message]');
+            const isNew = tr.querySelector('input[id^=hidIsNew]');
+            out.push({
+              id: dot ? (dot.getAttribute('data-message')||'') : '',
+              cells,
+              unread: isNew ? String(isNew.value||'').toLowerCase() !== 'non' : false,
+            });
+          }
+          return out;
+        }"""
+        )
+        items = []
+        for row in rows or []:
+            cells = [
+                c for c in row.get("cells", [])
+                if c not in ("Message lu", "Nouveau message", "Catégoriser")
+            ]
+            if not cells:
+                continue
+            date = ""
+            body_cells = []
+            for cell in cells:
+                parsed = parse_publish_date(cell)
+                if parsed and not date:
+                    date = parsed
+                else:
+                    body_cells.append(cell)
+            sender = body_cells[0] if body_cells else ""
+            preview = body_cells[1] if len(body_cells) > 1 else ""
+            items.append({
+                "id": row.get("id", ""),
+                "sender": sender[:120],
+                "preview": preview,
+                "date": date,
+                "unread": bool(row.get("unread")),
+            })
+        return items
+
     def _collect_mio(self) -> list[dict]:
         """Unread MIO senders and subjects. Never opens a message."""
-        self._home()
-        link = self.page.locator("a[data-type-service='MIO']").first
-        if link.count() == 0:
-            return []
-        href = link.get_attribute("href") or ""
-        if not href:
-            return []
-        url = href if href.startswith("http") else self.portal.home + href
-        self.page.goto(url, wait_until="domcontentloaded")
-        self.page.wait_for_timeout(5000)
-
-        list_frame = next(
-            (f for f in self.page.frames if "MioListe.aspx" in (f.url or "")), None
-        )
+        list_frame = self._open_mio_list()
         if list_frame is None:
-            self.log.warning("MIO list frame not found; skipping MIO for this run")
             return []
 
         rows = list_frame.evaluate(

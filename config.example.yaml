@@ -112,6 +112,13 @@ books_folder: "3_Livres"
 # actually live, and nothing else in this project ever read one.
 communiques_folder: "4_Communiques"
 
+# Where MIO from your own teachers is saved, one file each. Only messages from
+# a teacher named in courses: above are kept; the rest of the inbox, the
+# student association and the activity invitations, is left alone. Nothing
+# opens a message, so nothing is marked read, which is why what gets saved is
+# the inbox preview rather than the full text.
+mio_folder: "5_MIO"
+
 # Substring of the input device name, as shown in System Settings > Sound.
 # Empty = the system default input.
 microphone: ""

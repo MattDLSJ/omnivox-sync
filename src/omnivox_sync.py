@@ -921,6 +921,18 @@ def sync(
     # in chain_downstream because the driver only exists inside this function,
     # and an earlier version read it off the result object, where it does not
     # exist: the step would have silently never run.
+    if hasattr(driver, "list_mio"):
+        try:
+            from src.mio import sync_mio
+
+            queued = sync_mio(cfg, driver, dry_run=dry_run, logger=log)
+            if queued:
+                log.info("MIO: %d new from your teachers", len(queued))
+                result.upload_queue.extend(queued)
+        except Exception as exc:  # noqa: BLE001 - never at the cost of documents
+            log.warning("MIO step failed: %s", exc)
+            result.errors.append({"scope": "mio", "error": str(exc)})
+
     if hasattr(driver, "list_communiques"):
         try:
             from src.communiques import sync_communiques

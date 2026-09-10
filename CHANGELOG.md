@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v27 (2026-09-10)
+
+MIO from your own teachers is now saved into that teacher's course folder and uploaded to its notebook, so what they told you in a message is searchable beside their slides. The rest of the inbox is left alone. Nothing opens a message, so nothing is marked read, which means what is saved is the inbox preview and each file says so. This also fixes MIO in the digest, which had been silently missing it because the link it looked for no longer carries the attribute it matched on.
+
 ## v26 (2026-09-10)
 
 Teacher communiqués are now saved into each course folder and uploaded to that course's notebook. A communiqué is where instructions like which book to buy, or how to study for the exam, actually live, and nothing in this project had ever read one: they are not a section inside a course, they are a panel on the LEA landing page card, so searching a course for them finds nothing.

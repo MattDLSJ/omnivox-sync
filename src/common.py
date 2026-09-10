@@ -148,6 +148,8 @@ class Config:
     # digit for the same reason as the others: Finder compares runs of digits
     # numerically, so it sorts with them rather than into the middle of them.
     communiques_folder: str = "4_Communiques"
+    # Messages your own teachers sent you in Omnivox's internal mail.
+    mio_folder: str = "5_MIO"
     # Which microphone to record from, matched on the name avfoundation reports
     # ("MacBook Pro Microphone"). Empty means "use the built-in". Never an
     # index: see MIC_PREFERENCE in src/recorder.py for what that cost.
@@ -363,6 +365,7 @@ def load_config(config_path: Path, *, repo_root: Path | None = None) -> Config:
         communiques_folder=str(
             raw.get("communiques_folder", "4_Communiques") or "4_Communiques"
         ),
+        mio_folder=str(raw.get("mio_folder", "5_MIO") or "5_MIO"),
         microphone=str(raw.get("microphone", "") or ""),
         transcribe=bool(raw.get("transcribe", True)),
         transcribe_language=str(raw.get("transcribe_language", "auto") or "auto"),

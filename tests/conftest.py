@@ -25,6 +25,9 @@ def sample_config_dict(tmp_path):
                 "folder": "Écriture et littérature",
                 "notebook": "Écriture et littérature - Cegep Automne 2026",
                 "record": False,
+                # Invented, like every other name in this suite. Present so the
+                # MIO tests can match a sender to a course instead of skipping.
+                "teacher": "Jordan Tremblay",
             },
             {
                 "code": "201-103-RE",
