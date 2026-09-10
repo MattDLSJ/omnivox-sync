@@ -286,3 +286,30 @@ def test_the_session_uses_the_portal_it_is_given():
     session.portal = Portal(school="cvm")
     session.page = _Page()
     assert session._absolute("ListeDocuments.aspx").startswith("https://cvm-lea.")
+
+
+def test_an_empty_semester_is_worked_out_from_the_date():
+    """The example used to hardcode one. That is correct for a few months and
+    then quietly wrong: an install in January would create a folder called
+    "Cegep Automne 2026" and file a winter semester into it, and nobody would
+    notice until the folder names stopped matching what they were studying."""
+    from datetime import date
+
+    from src.common import default_semester
+
+    assert default_semester(date(2026, 9, 10)) == "Automne 2026"
+    assert default_semester(date(2027, 1, 15)) == "Hiver 2027"
+    assert default_semester(date(2027, 6, 20)) == "Été 2027"
+    assert default_semester(date(2026, 12, 31)) == "Automne 2026"
+
+
+def test_a_semester_written_by_hand_is_never_overridden(tmp_repo, sample_config_dict):
+    """Anyone with a preference keeps it. This only fills in a blank."""
+    import yaml
+
+    from src.common import load_config
+
+    data = dict(sample_config_dict, semester="Fall 2026")
+    path = tmp_repo / "config.yaml"
+    path.write_text(yaml.safe_dump(data, allow_unicode=True), encoding="utf-8")
+    assert load_config(path, repo_root=tmp_repo).semester == "Fall 2026"

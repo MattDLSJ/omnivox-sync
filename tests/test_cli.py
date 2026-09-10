@@ -90,20 +90,89 @@ def test_nothing_new_exits_0_and_stays_silent(
     assert notes == []
 
 
-def test_discover_prints_paste_ready_yaml(
+def test_discover_prints_paste_ready_yaml_when_asked_to(
     write_config, write_env, monkeypatch, capsys, fake_driver, course_factory
 ):
+    """--print-only keeps the old behaviour, for anyone piping it somewhere."""
     write_env()
     monkeypatch.setattr(
         "src.omnivox_sync._open_session",
         lambda *a, **k: _ctx(fake_driver(courses=[course_factory()])),
     )
     monkeypatch.setattr("src.omnivox_sync.notify", lambda *a, **k: None)
-    assert main(["--config", str(write_config()), "--discover"]) == 0
+    assert main(["--config", str(write_config()), "--discover", "--print-only"]) == 0
     out = capsys.readouterr().out
     assert "courses:" in out
     parsed = yaml.safe_load(out[out.index("courses:"):])
     assert parsed["courses"][0]["code"] == "601-101-MQ"
+
+
+def test_discover_writes_the_courses_into_the_config_itself(
+    write_config, write_env, monkeypatch, fake_driver, course_factory
+):
+    """Printing a block for somebody to paste assumed a person who knows what
+    a YAML list is and where in the file it goes. It is also the one step the
+    AI cannot do for them when the AI is not the thing running the command,
+    which is how a tester ended up copying terminal output back into a chat
+    window by hand."""
+    write_env()
+    monkeypatch.setattr(
+        "src.omnivox_sync._open_session",
+        lambda *a, **k: _ctx(fake_driver(courses=[course_factory(code="420-XYZ-EM")])),
+    )
+    monkeypatch.setattr("src.omnivox_sync.notify", lambda *a, **k: None)
+    config = write_config()
+
+    assert main(["--config", str(config), "--discover"]) == 0
+
+    written = yaml.safe_load(config.read_text(encoding="utf-8"))
+    assert "420-XYZ-EM" in [c["code"] for c in written["courses"]]
+    assert written["semester"] == "Automne 2026", "it replaced more than the courses"
+
+
+def test_discover_keeps_a_copy_of_what_it_replaced(
+    write_config, write_env, monkeypatch, fake_driver, course_factory
+):
+    """It overwrites a file somebody may have hand-edited. One command that
+    silently replaces a semester of corrections is not a trade worth making."""
+    write_env()
+    monkeypatch.setattr(
+        "src.omnivox_sync._open_session",
+        lambda *a, **k: _ctx(fake_driver(courses=[course_factory()])),
+    )
+    monkeypatch.setattr("src.omnivox_sync.notify", lambda *a, **k: None)
+    config = write_config()
+    before = config.read_text(encoding="utf-8")
+
+    main(["--config", str(config), "--discover"])
+
+    backup = config.with_suffix(config.suffix + ".bak")
+    assert backup.exists()
+    assert backup.read_text(encoding="utf-8") == before
+
+
+def test_a_config_that_would_not_parse_is_rolled_back(
+    write_config, write_env, monkeypatch, fake_driver, course_factory
+):
+    """A config that no longer loads stops the next run dead, and the version
+    that worked is right there."""
+    write_env()
+    monkeypatch.setattr(
+        "src.omnivox_sync._open_session",
+        lambda *a, **k: _ctx(fake_driver(courses=[course_factory()])),
+    )
+    monkeypatch.setattr("src.omnivox_sync.notify", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "src.omnivox_sync.merge_courses",
+        lambda text, courses, semester: ("courses: [unclosed\n", 1, 0),
+    )
+    config = write_config()
+    before = config.read_text(encoding="utf-8")
+
+    code = main(["--config", str(config), "--discover"])
+
+    assert code != 0, "a config it could not write must not report success"
+    assert config.read_text(encoding="utf-8") == before
 
 
 def test_login_failure_exits_2(write_config, write_env, monkeypatch):
@@ -140,7 +209,9 @@ def test_login_bootstrap_never_touches_the_normal_session_path(
         "src.omnivox_sync._open_session",
         lambda *a, **k: pytest.fail("--login must not go through _open_session"),
     )
-    monkeypatch.setattr("src.omnivox_sync._bootstrap_login", lambda cfg, log: 0)
+    monkeypatch.setattr(
+        "src.omnivox_sync._bootstrap_login", lambda cfg, log, config_path=None: 0
+    )
     assert main(["--config", str(write_config()), "--login"]) == 0
 
 
@@ -573,3 +644,95 @@ def test_doctor_objects_when_nothing_at_all_can_sign_in(tmp_repo, write_config):
         f"{stamp},000 INFO    Sync finished: 0 downloaded\n", encoding="utf-8"
     )
     assert sync_main(["--config", str(write_config()), "--doctor"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Discovery merges; it does not replace
+#
+# Replacing the whole courses block wholesale is how a real config lost every
+# teacher name, folder emoji, short name and group number in it, in one
+# command, on the author's own machine. Discovery knows a course code and its
+# SHOUTED Omnivox title. The readable folder name, the teacher and the icon
+# are a person's work.
+# ---------------------------------------------------------------------------
+
+
+def _course(code, name):
+    from src.omnivox import OmnivoxCourse
+
+    return OmnivoxCourse(code=code, name=name, href="/x")
+
+
+CONFIGURED = """\
+semester: "Automne 2026"
+courses:
+- code: 601-101-MQ
+  omnivox_name: ECRITURE ET LITTERATURE
+  folder: Écriture et littérature
+  notebook: Écriture - Cegep Automne 2026
+  record: false
+  teacher: Someone Invented
+  icon: "📚"
+  short: Litt
+  group: "1010"
+schedule: []
+"""
+
+
+def test_a_course_already_configured_is_left_completely_alone():
+    from src.omnivox_sync import merge_courses
+
+    merged, added, kept = merge_courses(
+        CONFIGURED, [_course("601-101-MQ", "ECRITURE ET LITTERATURE")], "Automne 2026"
+    )
+    course = yaml.safe_load(merged)["courses"][0]
+    assert (added, kept) == (0, 1)
+    assert course["teacher"] == "Someone Invented"
+    assert course["icon"] == "📚"
+    assert course["short"] == "Litt"
+    assert course["group"] == "1010"
+    assert course["folder"] == "Écriture et littérature", "the readable name is a person's work"
+
+
+def test_a_new_course_is_added_with_sensible_defaults():
+    from src.omnivox_sync import merge_courses
+
+    merged, added, kept = merge_courses(
+        CONFIGURED,
+        [_course("601-101-MQ", "ECRITURE ET LITTERATURE"), _course("999-NEW-XX", "NOUVEAU COURS")],
+        "Automne 2026",
+    )
+    codes = [c["code"] for c in yaml.safe_load(merged)["courses"]]
+    assert (added, kept) == (1, 1)
+    assert "999-NEW-XX" in codes
+
+
+def test_a_configured_course_that_discovery_missed_is_not_deleted():
+    """It might be a dropped course. It might equally be the scraper having a
+    bad afternoon, and deleting somebody's configuration on that evidence is
+    not something to do quietly."""
+    from src.omnivox_sync import merge_courses
+
+    merged, _added, _kept = merge_courses(CONFIGURED, [_course("999-NEW-XX", "NEW")], "Automne 2026")
+    codes = [c["code"] for c in yaml.safe_load(merged)["courses"]]
+    assert "601-101-MQ" in codes
+
+
+def test_discovery_into_an_empty_config_just_adds_everything():
+    from src.omnivox_sync import merge_courses
+
+    merged, added, kept = merge_courses(
+        "semester: \"Automne 2026\"\ncourses: []\n", [_course("A-1", "ONE")], "Automne 2026"
+    )
+    assert (added, kept) == (1, 0)
+    assert yaml.safe_load(merged)["courses"][0]["folder"] == "One"
+
+
+def test_a_config_too_broken_to_read_still_gets_its_courses():
+    """The moment somebody most needs discovery is when their config is a
+    mess. Refusing to write one is not help."""
+    from src.omnivox_sync import merge_courses
+
+    merged, added, _kept = merge_courses("courses: [unclosed\n", [_course("A-1", "ONE")], "S")
+    assert added == 1
+    assert yaml.safe_load(merged)["courses"][0]["code"] == "A-1"

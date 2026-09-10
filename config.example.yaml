@@ -1,4 +1,10 @@
-semester: "Automne 2026"
+# The name of this term. It becomes part of your folder path and of every
+# notebook name, so write it however you would say it. Leave it EMPTY and it
+# is worked out from today's date, which is what you want unless you have a
+# preference: a hardcoded one is correct for a few months and then quietly
+# wrong, and an install in January would file a winter semester into a folder
+# named after the autumn.
+semester: ""
 
 # NOTE: existing folders on this Mac use English season names
 # ("Cegep Fall 2025", "Cegep Winter 2026", "Cegep Summer 2026").

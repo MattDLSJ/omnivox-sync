@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v15 (2026-09-10)
+
+Setting up is one command shorter and one copy-paste lighter: make login now finds your courses and writes them into config.yaml in the same browser session, instead of printing a block for you to paste. Discovery adds what is new and leaves courses you have already set up completely alone, including folder names, teachers and icons. The setup brief now only stops for the three things a person actually has to supply. And the semester name is worked out from the date rather than hardcoded, so an install in January no longer files a winter semester into a folder named after the autumn.
+
 ## v14 (2026-09-10)
 
 make login now offers to save your credentials at the end, taken from what you typed into the browser, so you are no longer asked to type your password a second time into another command. Correction to what earlier releases said: those credentials are REQUIRED for scheduled runs, not optional. The stored profile keeps the trusted-device cookie that stops the six-digit codes, but not the signed-in session, which dies with the browser. Measured over 93 runs: 114 sign-ins, zero session reuses. make doctor was calling that setup healthy and now says plainly that nothing scheduled can sign in.

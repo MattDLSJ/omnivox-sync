@@ -450,6 +450,102 @@ def folder_name_from(display_name: str) -> str:
     return cleaned
 
 
+def write_courses(config_path: Path, courses: list[OmnivoxCourse], semester: str) -> int:
+    """Put the discovered courses into config.yaml, keeping the rest of it.
+
+    Printing a block for somebody to paste in assumed a person who knows what
+    a YAML list is and where in the file it goes. The whole promise here is
+    that they do not have to, and it is also a step that cannot be automated
+    away by the AI when the AI is not the one running the command.
+
+    A copy is left beside it first. This overwrites a file somebody may have
+    hand-edited, and one command that silently replaces a semester of
+    corrections is not a trade worth making for the convenience.
+    """
+    import yaml as _yaml
+
+    from src.config_edit import set_block
+
+    config_path = Path(config_path)
+    original = config_path.read_text(encoding="utf-8")
+    backup = config_path.with_suffix(config_path.suffix + ".bak")
+    backup.write_text(original, encoding="utf-8")
+
+    merged, added, kept = merge_courses(original, courses, semester)
+    updated = set_block(original, "courses", merged)
+    config_path.write_text(updated, encoding="utf-8")
+
+    # Read it back. A config that no longer parses is a config that stops the
+    # next run dead, and the previous version is right there.
+    try:
+        import yaml as _yaml
+
+        loaded = _yaml.safe_load(updated) or {}
+        assert isinstance(loaded.get("courses"), list) and loaded["courses"]
+    except Exception:  # noqa: BLE001
+        config_path.write_text(original, encoding="utf-8")
+        raise
+
+    print(f"\n{config_path.name}: {added} course(s) added, {kept} left as they were.")
+    for course in courses:
+        print(f"  {course.code}  {course.name}")
+    if kept:
+        print(
+            f"\nThe {kept} that were already there keep their folder names and "
+            "anything\nelse set by hand. The previous file is at "
+            f"{backup.name} either way."
+        )
+    return len(courses)
+
+
+def merge_courses(config_text: str, courses, semester: str) -> tuple[str, int, int]:
+    """Add what is new, leave alone what is already configured.
+
+    Replacing the whole block wholesale was how a real config lost every
+    teacher name, folder emoji, short name and group number in it. Discovery
+    knows a course's code and its SHOUTED Omnivox title and nothing else; the
+    readable folder name, the teacher and the icon are a person's work, and a
+    command that silently discards them for the convenience of one setup step
+    is not a trade worth making.
+
+    A course in the config that Omnivox no longer lists is kept too. It might
+    be a dropped course, and it might equally be a scraper hiccup on one
+    afternoon; deleting somebody's configuration on that evidence is not
+    something to do quietly.
+    """
+    import yaml as _yaml
+
+    try:
+        existing = (_yaml.safe_load(config_text) or {}).get("courses") or []
+    except Exception:  # noqa: BLE001 - a broken config is still worth writing to
+        existing = []
+    by_code = {str(c.get("code")): c for c in existing if isinstance(c, dict)}
+
+    out, added, kept = [], 0, 0
+    for course in courses:
+        if course.code in by_code:
+            out.append(by_code.pop(course.code))
+            kept += 1
+        else:
+            folder = folder_name_from(course.name)
+            out.append({
+                "code": course.code,
+                "omnivox_name": course.name,
+                "folder": folder,
+                "notebook": f"{folder} - Cegep {semester}",
+                "record": False,
+            })
+            added += 1
+    # Anything configured that discovery did not return, kept at the end.
+    out.extend(by_code.values())
+
+    return (
+        _yaml.safe_dump({"courses": out}, allow_unicode=True, sort_keys=False, width=1000),
+        added,
+        kept,
+    )
+
+
 def render_discovery_yaml(courses: list[OmnivoxCourse], semester: str) -> str:
     """A paste-ready `courses:` block for config.yaml (spec section 5.3)."""
     block = {
@@ -1106,9 +1202,19 @@ def _doctor(cfg: Config) -> int:
     return 1
 
 
-def _bootstrap_login(cfg: Config, log: logging.Logger) -> int:
-    """Handle --login: open a visible browser and wait for the user to clear
-    Omnivox's identity validation, so the profile becomes a trusted device.
+def _bootstrap_login(
+    cfg: Config, log: logging.Logger, config_path: Path | None = None
+) -> int:
+    """Handle --login: open a visible browser, wait for the user to sign in and
+    clear Omnivox's identity validation, then finish the setup in the same
+    session.
+
+    It does the discovery too, because the browser is already open and signed
+    in and there is no reason to make somebody run a second command for it.
+    That second command used to print a `courses:` block for a human to paste
+    into a YAML file, which assumes a person who knows what a YAML list is,
+    and which a tester ended up copying out of a terminal and back into a chat
+    window by hand.
 
     The 6-digit code is entered by the user in the browser. This program never
     reads, requests, stores, or types it.
@@ -1131,18 +1237,38 @@ def _bootstrap_login(cfg: Config, log: logging.Logger) -> int:
             portal=build_portal(cfg),
         ) as session:
             typed_user, typed_pass = session.await_manual_login(user, password)
+
+            clear_login_block(cfg)  # a person just cleared what was blocking it
+            print("\nLogged in, and this computer is now a trusted device, so")
+            print("Omnivox will stop e-mailing you six-digit codes.")
+
+            # While the browser is open and signed in. Failing here must not
+            # undo the login, which is the part that needed a person.
+            found = []
+            if config_path and not cfg.courses:
+                try:
+                    print("\nFinding your courses...")
+                    found = session.list_courses()
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("Discovery after login failed: %s", exc)
+                    print(f"Could not list your courses ({type(exc).__name__}).")
+                    print("Nothing is wrong with the login. Try: make discover")
     except Exception as exc:  # noqa: BLE001
         log.error("Interactive login failed: %s", exc)
         notify("School sync: login bootstrap failed", str(exc), critical=True, cfg=cfg.notify)
         return 2
 
-    clear_login_block(cfg)  # a person just did the thing that was blocking it
-    print("\nLogged in, and this computer is now a trusted device, so Omnivox")
-    print("will stop e-mailing you six-digit codes.")
+    if found:
+        try:
+            write_courses(config_path, found, cfg.semester)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Could not write the discovered courses: %s", exc)
+            print(f"Found your courses but could not write config.yaml ({exc}).")
 
     if not (user and password) and typed_user and typed_pass:
         _offer_to_save_credentials(cfg, typed_user, typed_pass)
-    print("\nNext: make dry-run")
+
+    print("\nNext: make setup, then make dry-run")
     return 0
 
 
@@ -1209,7 +1335,12 @@ def build_parser() -> argparse.ArgumentParser:
     group.add_argument(
         "--discover",
         action="store_true",
-        help="print a paste-ready courses: block for config.yaml and exit",
+        help="find your courses and write them into config.yaml",
+    )
+    parser.add_argument(
+        "--print-only",
+        action="store_true",
+        help="with --discover, print the block instead of writing the file",
     )
     parser.add_argument(
         "--doctor",
@@ -1349,7 +1480,7 @@ def _run(args, cfg: Config, log: logging.Logger) -> int:
         return _doctor(cfg)
 
     if args.login:
-        return _bootstrap_login(cfg, log)
+        return _bootstrap_login(cfg, log, Path(args.config))
 
     # Before anything else that can fail, and before the login block, because
     # a release that fixes the thing somebody is stuck on is exactly the
@@ -1386,11 +1517,14 @@ def _run(args, cfg: Config, log: logging.Logger) -> int:
         with _open_session(cfg, headed=args.headed, logger=log) as session:
             if args.discover:
                 courses = session.list_courses()
-                print(f"# Discovered {len(courses)} courses for {cfg.semester}.")
-                print("# Paste the block below into config.yaml, replacing the")
-                print("# existing course list. Adjust folder names if you like.\n")
-                print(render_discovery_yaml(courses, cfg.semester))
                 log.info("Discovery listed %d courses", len(courses))
+                if args.print_only:
+                    print(f"# Discovered {len(courses)} courses for {cfg.semester}.")
+                    print("# Paste the block below into config.yaml, replacing the")
+                    print("# existing course list. Adjust folder names if you like.\n")
+                    print(render_discovery_yaml(courses, cfg.semester))
+                    return 0
+                write_courses(Path(args.config), courses, cfg.semester)
                 return 0
 
             result = sync(

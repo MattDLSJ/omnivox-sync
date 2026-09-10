@@ -121,6 +121,48 @@ def set_value(text: str, path: list[str], value) -> str:
     return "\n".join(lines) + ("\n" if text.endswith("\n") else "")
 
 
+def set_block(text: str, key: str, block: str) -> str:
+    """Replace a whole top-level block, such as `courses:` and its list.
+
+    `block` is rendered YAML that already includes its own `key:` line, which
+    is what yaml.safe_dump produces. Everything outside the block, comments
+    included, is left byte for byte alone.
+
+    This exists so that discovery can write config.yaml itself. Printing a
+    block for somebody to paste in assumed a person who knows what a YAML list
+    is and can find the right place to put it, and the whole promise of this
+    project is that they do not have to.
+    """
+    lines = text.splitlines(keepends=True)
+    start = None
+    for index, line in enumerate(lines):
+        found = _LINE.match(line)
+        if found and not found.group("indent") and found.group("key") == key:
+            start = index
+            break
+    if start is None:
+        return text.rstrip("\n") + "\n\n" + block.rstrip("\n") + "\n"
+
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        found = _LINE.match(lines[index])
+        if found and not found.group("indent"):
+            end = index
+            break
+    # A run of comments and blank lines sitting directly above the next
+    # top-level key introduces THAT key, not this one. Swallowing them here
+    # would delete the documentation for whatever comes after courses:.
+    while end > start + 1:
+        above = lines[end - 1].strip()
+        if above.startswith("#") or not above:
+            end -= 1
+        else:
+            break
+
+    replacement = block.rstrip("\n") + "\n"
+    return "".join(lines[:start]) + replacement + "".join(lines[end:])
+
+
 def set_many(text: str, settings: dict) -> str:
     """`{"notebooklm.mode": "staging", "transcribe": False}` in one pass."""
     for dotted, value in settings.items():

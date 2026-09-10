@@ -249,7 +249,10 @@ def load_config(config_path: Path, *, repo_root: Path | None = None) -> Config:
     if not isinstance(raw, dict):
         raise ConfigError(f"{config_path.name}: top level must be a mapping")
 
-    semester = _require(raw, "semester", config_path.name)
+    # Not _require: an empty semester means "work it out from the date", which
+    # is how the example avoids shipping a term name that is right for a few
+    # months and then quietly wrong.
+    semester = raw.get("semester") or ""
     base_path_raw = _require(raw, "base_path", config_path.name)
     base_path = Path(str(base_path_raw)).expanduser()
     if not base_path.is_absolute():
@@ -325,7 +328,9 @@ def load_config(config_path: Path, *, repo_root: Path | None = None) -> Config:
         )
 
     return Config(
-        semester=str(semester),
+        # Blank means "work it out from the date", so a fresh install in
+        # January does not inherit last autumn's folder name.
+        semester=str(semester) if str(semester).strip() else default_semester(),
         base_path=base_path,
         courses=courses,
         schedule=list(raw.get("schedule") or []),
@@ -402,6 +407,32 @@ def build_portal(cfg) -> "object":
 #: after supper: the three moments a document is likely to have been posted
 #: since the last look.
 DEFAULT_SYNC_TIMES = ((7, 30), (12, 15), (18, 30))
+
+
+#: Quebec cégep terms. August through December is the autumn one, January
+#: through May the winter one, and the short summer session sits between.
+_TERMS = ((8, "Automne"), (6, "Été"), (1, "Hiver"))
+
+
+def default_semester(today=None) -> str:
+    """"Automne 2026", worked out from the date.
+
+    The example config used to hardcode one, which meant it was correct for a
+    few months and then quietly wrong: an install in January would have
+    created a folder called "Cegep Automne 2026" and filed a winter semester
+    into it. Nobody would notice until the folder names stopped matching what
+    they were studying.
+
+    French, because Omnivox is a Quebec product and this is what the cégep
+    calendar itself calls the term. It is one line in config.yaml to write it
+    any other way, and anyone who does keeps their own version: this only
+    fills in a blank.
+    """
+    from datetime import date
+
+    today = today or date.today()
+    name = next(label for month, label in _TERMS if today.month >= month)
+    return f"{name} {today.year}"
 
 
 def parse_sync_times(raw) -> tuple[tuple[int, int], ...]:

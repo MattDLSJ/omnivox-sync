@@ -249,20 +249,30 @@ page explains what each choice costs, which a chat message does not.
 Everything else has a sensible default and lives behind `make settings`, which
 I can open any time. Mention that it exists, then move on.
 
-**6. Discover my courses.**
+**6. Check the courses it found.**
+
+Step 4 already found them and wrote them into `config.yaml`, because the
+browser was open and signed in and there was no reason to make me run a second
+command for it. If it did not, or to redo it:
 
     make discover
 
-This prints a `courses:` block. Paste it into `config.yaml`, show me the
-result, and ask whether the folder names look right. They become real folders,
-so this is the moment to change them.
+Do not ask me whether the folder names look right. They come from the names
+Omnivox already uses, one line changes any of them later, and nothing about
+them is irreversible. **List them in the summary at the end** and carry on.
+
+Never print a block for me to paste somewhere. If a command produces
+configuration, it writes the configuration. Discovery adds courses it has not
+seen and leaves the ones already there exactly alone, so nothing set by hand
+is at risk, and the previous file is kept as `config.yaml.bak` regardless.
 
 **7. Rehearse, then run.**
 
     make dry-run
 
-Nothing downloads, nothing is written. Show me the output and tell me what it
-would have done. Then `make sync` for real.
+Nothing downloads, nothing is written. Read that output yourself, and if it
+looks right run `make sync` for real without asking me first. If it looks
+wrong, that is exactly when you stop and tell me.
 
 The first real run backfills the whole semester so far, which for a normal
 course load is a hundred-odd files. That is correct, not a bug.
