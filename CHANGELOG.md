@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v17 (2026-09-10)
+
+Setting up no longer runs the full test suite after every step. It runs once as a baseline, and again only if a source file actually changes, which takes several minutes of blocking out of a normal install.
+
 ## v16 (2026-09-10)
 
 INSTALL.md now says where to put this before cloning it, and make doctor warns if it ended up somewhere temporary. An agent testing the setup cloned the whole project into its own scratch folder, which is where your credentials, your signed-in browser profile and your documents all live, and that folder can be cleared without warning.

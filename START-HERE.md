@@ -115,21 +115,30 @@ around it.
   `make setup-omnivox` asks me directly and writes it without showing you.
 - **Never invent a value in `config.yaml`.** Course codes, folder names and
   notebook names come from the discovery step or from me.
-- **Run the offline tests after every change** and tell me the number that
-  passed. Use the project's own Python, never a bare `pytest`, which is a
-  different installation and fails on the imports:
+- **Run the offline tests ONCE**, right after the environment is built, and
+  remember the number. Use the project's own Python, never a bare `pytest`,
+  which is a different installation and fails on the imports:
 
       .venv/bin/python -m pytest -m "not live"          macOS
       .venv\Scripts\python -m pytest -m "not live"       Windows
 
-  Note the number the first time and compare after each step. If it drops,
-  stop and fix that before continuing. No account needed. Tests that only
-  apply to another operating system report as **skipped**, not failed; a
-  handful of skips on Windows is correct and is not something to fix.
+  That number is the baseline. Setting this up changes no code, so there is
+  nothing to re-verify: run it again only if you actually edit a source file,
+  then compare. A thousand tests take real time, and a setup that blocks for a
+  minute at every step is a setup people abandon. Tests that only apply to
+  another operating system report as **skipped**, not failed; a handful of
+  skips on Windows is correct and is not something to fix.
 - **Never commit or push, and never run `make publish` or
   `make public-snapshot`.** Those send code to the public repository and belong
   to whoever maintains it, not to me.
-- **Show me real output** rather than telling me it worked.
+- **Show me real output** rather than telling me it worked. Once, at the end,
+  not after every command.
+- **Actually run a command in the same turn you mention it.** Do not tell me
+  you are about to run something and then stop. Some agent tools end the turn
+  there and nothing happens until I send another message, which turns a
+  ten-minute setup into an hour of me typing "ok". If something is genuinely
+  slow, say what you are running, run it, and tell me the result when it
+  comes back.
 - **Write down anything you had to fix.** Not at the end, when you have
   forgotten: keep a running note as you go, and turn it into a report at the
   end with `make report`. Details below, and it matters more than it sounds
