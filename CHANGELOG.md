@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v20 (2026-09-10)
+
+Fixes a setup that looked like it had hung. Some agent tools run commands in a sandbox, so the Omnivox sign-in opened a browser window the person could never see, while the command waited ten minutes for a sign-in that could not happen. The installer now finishes everything it can, then stops and asks you to run the same command from your own terminal, which picks up exactly where it left off.
+
 ## v19 (2026-09-10)
 
 Installing is now one command: python3 install.py on a Mac, py install.py on Windows. It builds the environment, fetches what it needs, finds your college, signs you in, discovers your courses, asks which features you want and runs the first sync. It stops three times, for the three things only you can answer. Safe to run again: every step skips itself if it is already done, so an interrupted install is fixed by running it once more. START-HERE still has the whole sequence by hand, for when something goes wrong.

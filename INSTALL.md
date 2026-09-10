@@ -89,6 +89,14 @@ It stops three times, and each one is something only I can supply: the name of
 my college, signing in to Omnivox in the browser window it opens, and three
 questions on a settings page. Everything else it does by itself.
 
+**If you cannot open a window on my screen, say so and hand it to me.** Some
+agent tools run commands in a sandbox, where a browser launches somewhere I
+will never see it: the command reports success, nothing appears, and I sit
+waiting. The installer detects this and stops cleanly with instructions, and
+if it does, do not try to work around it. Tell me to open a terminal myself
+and run the same command, and pick up from what I report back. Running it a
+second time skips everything already done.
+
 It is safe to run again. Every step checks whether it is already done and
 skips it, so if anything fails partway, run it again rather than starting
 over.

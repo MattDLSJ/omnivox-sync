@@ -244,15 +244,53 @@ def set_portal() -> None:
     warn("skipping. Run `make find-portal` when you know the name.")
 
 
+#: Returned when everything automatable is done and the rest needs a person
+#: sitting at the machine. Not a failure.
+NEEDS_A_PERSON = 3
+
+
+def _this_is_a_person() -> bool:
+    """Is a human at this terminal, or is an agent driving it?
+
+    stdin being a terminal is the best proxy available. It matters because the
+    next two steps open windows on somebody's screen, and an agent tool that
+    runs commands in a sandbox gets a browser its user will never see: the
+    command reports that it launched, nothing appears, and the person waits.
+    """
+    try:
+        return sys.stdin.isatty() and sys.stdout.isatty()
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _hand_over(remaining: str) -> int:
+    command = "py install.py" if IS_WINDOWS else "python3 install.py"
+    print(
+        "\n" + "=" * 66
+        + "\nEverything that can be automated is done. The rest needs you at the\n"
+        "keyboard, because it opens windows on your screen:\n\n"
+        f"    {remaining}\n\n"
+        "Open a terminal yourself"
+        + (" (PowerShell)" if IS_WINDOWS else "")
+        + f", go to this folder, and run:\n\n    {command}\n\n"
+        "It picks up exactly where this stopped and skips everything already\n"
+        "done. This is not an error, and nothing has gone wrong.\n"
+        + "=" * 66
+    )
+    return NEEDS_A_PERSON
+
+
 def sign_in() -> None:
     step("Signing in to Omnivox")
     print("    A browser window is about to open. Type your student number and")
     print("    password into it. If Omnivox e-mails you a six-digit code, enter it")
     print("    and TICK \u00abJ'utilise un appareil de confiance\u00bb before validating.")
-    print("    Missing that box is what makes it stop working tomorrow.\n")
+    print("    Missing that box is what makes it stop working tomorrow.")
+    print("    If no window appears within a few seconds, press Ctrl-C and tell")
+    print("    me, because that means the browser opened somewhere you cannot see.\n")
     got = run([str(VENV_PYTHON), "-m", "src.omnivox_sync", "--login"])
     if got.returncode != 0:
-        die("the sign-in did not complete. Run `python3 install.py` again to retry.")
+        die("the sign-in did not complete. Run the installer again to retry.")
 
 
 def choose_settings() -> None:
@@ -303,6 +341,15 @@ def main(argv: list[str]) -> int:
     install_browser()
     make_config_files()
     check_converters()
+
+    if not _this_is_a_person():
+        # Everything from here opens a window. An agent running this in a
+        # sandbox gets a browser nobody can see, reports that it launched, and
+        # leaves its user staring at a screen where nothing happened.
+        return _hand_over(
+            "choosing your college, signing in to Omnivox, and picking your settings"
+        )
+
     set_portal()
     sign_in()
     choose_settings()
