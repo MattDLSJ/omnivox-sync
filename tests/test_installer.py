@@ -94,3 +94,19 @@ def test_every_step_is_safe_to_run_twice(installer, capsys):
     out = capsys.readouterr().out
     assert "already there" in out
     assert "left alone" in out
+
+
+def test_a_driven_run_does_not_pop_a_browser_window(installer, monkeypatch):
+    """Nobody is at that screen. Worse, running this from a test or a script
+    opened real tabs in whatever browser the machine happened to have, twice,
+    on the author's own Mac."""
+    calls = []
+    monkeypatch.setattr(installer, "run", lambda args, **kw: calls.append(args))
+    monkeypatch.setattr(installer, "step", lambda *_a: None)
+
+    installer.choose_settings(interactive=False)
+    assert "--no-browser" in calls[0]
+
+    calls.clear()
+    installer.choose_settings(interactive=True)
+    assert "--no-browser" not in calls[0], "a person at the keyboard wants the window"

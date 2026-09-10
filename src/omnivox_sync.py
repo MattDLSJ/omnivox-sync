@@ -690,21 +690,60 @@ def _sync_course(
     # until 2026-09-03 nothing here ever looked at it. Four weeks of syncing had
     # collected every slide deck across six courses and not one énoncé, which is
     # the half that actually carries the deadlines and the marking criteria.
-    #
-    # Appended to the same list on purpose: dedup, revision detection, PDF
-    # conversion, the NotebookLM queue and the digest are all downstream of this
-    # one list, and a brief deserves every one of them.
+    briefs = []
     try:
-        documents += list(driver.list_assignments(site_course))
+        briefs = list(driver.list_assignments(site_course))
     except Exception as exc:  # noqa: BLE001
         # A section that breaks must not cost the documents that already worked.
         log.warning("%s: could not read the assignment briefs: %s", course.code, exc)
         result.errors.append({"course": course.code, "scope": "travaux", "error": str(exc)})
 
-    # Computed over the WHOLE listing before the loop: the deck and the PDF of
-    # it are two separate rows, and either can come first.
-    published_pdfs = published_pdf_stems(documents)
+    # Computed over BOTH listings before anything downloads: the deck and the
+    # PDF of it are two separate rows, either can come first, and this reads
+    # only filenames, which do not expire.
+    published_pdfs = published_pdf_stems(documents + briefs)
 
+    # A LEA document link carries the timestamp of the listing that produced
+    # it (Ref=20260910035716) and DIES the moment a newer listing for that
+    # course is rendered. Listing the briefs renders one, so every document
+    # link went stale before it was ever used: the click waited its full 30
+    # seconds for an anchor no longer on the page, and the fetch that followed
+    # got HTTP 404. Four documents had been failing that way on every run
+    # since 2026-09-02, two minutes of timeouts a run, reported as "download
+    # failed" rather than as the expired link it was.
+    #
+    # So each set is downloaded while its OWN listing is the current page.
+    # Briefs first, because listing them is what we just did. Confirmed live
+    # in both directions: the same document is 404 after navigating away and
+    # HTTP 200 on a listing rendered for the purpose.
+    batch = {
+        "cfg": cfg,
+        "course": course,
+        "site_course": site_course,
+        "folder": folder,
+        "driver": driver,
+        "result": result,
+        "state_index": state_index,
+        "new_records": new_records,
+        "published_pdfs": published_pdfs,
+        "dry_run": dry_run,
+        "log": log,
+    }
+    if briefs:
+        _download_batch(briefs, **batch)
+    if documents and any(
+        classify_document(doc, state_index, folder)[0] != SKIP_KNOWN
+        for doc in documents
+    ):
+        documents = list(driver.list_documents(site_course))
+    _download_batch(documents, **batch)
+
+
+def _download_batch(documents, *, cfg, course, site_course, folder, driver,
+                    result, state_index, new_records, published_pdfs, dry_run,
+                    log):
+    """Download one listing's worth of rows. See _sync_course for why the
+    caller must render that listing immediately before calling this."""
     for doc in documents:
         decision, dest = classify_document(doc, state_index, folder)
 

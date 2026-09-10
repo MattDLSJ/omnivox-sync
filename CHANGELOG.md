@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v25 (2026-09-10)
+
+Fixes documents that could never download. A LEA document link expires as soon as another listing for that course is rendered, and reading the assignment briefs renders one, so every document link went stale before it was used: thirty seconds of waiting, then HTTP 404, on every run. Four files had been stuck this way for eight days on the author's own install and all four came through on the first run after the fix.
+
 ## v24 (2026-09-10)
 
 Two features nobody could find are now part of the setup. make books pulls chapters out of your i+ Interactif digital textbooks into the course folder, so the textbook ends up in the same notebook as the lecture slides. And the digest can be ranked by an AI instead of keyword rules if you add a Gemini key. Neither was mentioned anywhere an agent would read, so nobody knew they existed.

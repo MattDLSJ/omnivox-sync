@@ -360,10 +360,15 @@ def choose_settings(*, interactive: bool = True) -> None:
     print("    A page opens in your browser, with its address printed below in")
     print("    case it does not. Answer it THERE: nothing typed anywhere else")
     print("    reaches it.\n")
-    run([
-        str(VENV_PYTHON), "-m", "src.setup_page",
-        "--timeout", str(_page_timeout(interactive)),
-    ])
+    args = [str(VENV_PYTHON), "-m", "src.setup_page",
+            "--timeout", str(_page_timeout(interactive))]
+    if not interactive:
+        # Nobody is at this screen, so opening a window here does nothing
+        # useful and something actively confusing: run from a test or a script
+        # it pops tabs in whatever browser the machine happens to have. The
+        # printed address is what an agent passes on, and it is enough.
+        args.append("--no-browser")
+    run(args)
 
 
 def first_sync() -> None:
