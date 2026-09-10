@@ -97,6 +97,23 @@ than running quietly.
 By default it checks three times a day, at 07:30, 12:15 and 18:30. `make
 settings` changes that.
 
+### What it costs on disk
+
+Measured, not estimated, on a real install:
+
+| | |
+|---|---|
+| Python environment | 210 MB |
+| Chromium, for the scraper | 555 MB |
+| LibreOffice, for the PDF conversion | 800 MB |
+| ffmpeg | 50 MB |
+| **Total tooling** | **about 1.6 GB** |
+| One semester of course documents | around 100 MB |
+| The signed-in browser profile | grows to a few hundred MB over a semester |
+
+Lecture recording adds a **1.5 GB** speech model on top, which is why it is off
+unless you ask for it, and why the setup never downloads it speculatively.
+
 ## Before you start
 
 **macOS is the tested platform; the Omnivox half runs on Windows too.** The

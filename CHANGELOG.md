@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v12 (2026-09-10)
+
+Setting up is faster: the LibreOffice and ffmpeg downloads now run while you are signing in to Omnivox, instead of before it. Neither is needed until the first sync. The README now says what the whole thing costs on disk, measured rather than estimated: about 1.6 GB of tooling plus roughly 100 MB per semester of documents.
+
 ## v11 (2026-09-09)
 
 The repo's front page now tells you how to get the code, so handing somebody just the repository link is enough. It also says plainly not to use the Download ZIP button, which cannot receive fixes or send them. If you are catching up an older install, do not rename your folder to match the new project name: the scheduler and the virtual environment hold absolute paths to it.

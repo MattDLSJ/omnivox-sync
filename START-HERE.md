@@ -158,15 +158,7 @@ The last one downloads a browser, around 500 MB. Expected.
 Everywhere below, on Windows replace `make X` with the command it wraps and
 `.venv/bin/python` with `.venv\Scripts\python`.
 
-**2. Install what is not Python.**
-
-`ffmpeg`, and LibreOffice for the PowerPoint to PDF conversion. On Windows
-LibreOffice does not add itself to the PATH; the project knows the two usual
-install locations, so check that it is found and tell me if it is not. Skip
-whisper.cpp and its 1.5 GB model: that is for lecture recording, which we are
-not setting up.
-
-**3. Make my config.**
+**2. Make my config.**
 
     cp config.example.yaml config.yaml
     cp .env.example .env
@@ -177,6 +169,31 @@ confirmations above, plus `notebooklm: mode: "staging"` and
 `notify: macos: false`. The last two are explained at the bottom.
 
 Nothing goes in `.env` yet, and probably nothing ever will. Leave it alone.
+
+**3. Start the slow downloads, and then leave them running.**
+
+`ffmpeg` and LibreOffice, for the PowerPoint and Word to PDF conversion.
+Together they are most of a gigabyte and several minutes, and **nothing until
+the first sync needs either of them**, so they must not be something I sit and
+watch. Start them, and go straight on to step 4 while they download.
+
+On Windows LibreOffice does not add itself to the PATH; the project knows the
+two usual install locations, so once it finishes, check that it is found and
+tell me if it is not. Skip whisper.cpp and its 1.5 GB model entirely: that is
+lecture recording, which we are not setting up.
+
+Two rules about running this in the background, and they matter:
+
+- **Clear any permission prompt first.** On Windows the installer may ask for
+  administrator approval, and a dialog stealing focus while I am typing a
+  six-digit code into a browser is how step 4 gets failed and repeated. Get it
+  past the prompt and actually downloading, then move on.
+- **Never background anything that will ask me for something.** If it needs me,
+  it is not background work.
+
+If LibreOffice is somehow not ready by the first sync, that is not a failure:
+the sync logs the conversion, keeps the original file, and carries on. It can
+be installed afterwards.
 
 **4. Sign in once, in a real browser.**
 
@@ -195,6 +212,10 @@ afterwards:
   afterwards gets challenged, and it quietly stops working tomorrow.
 - The window waits ten minutes and then gives up. If I wander off, run it
   again; nothing is harmed.
+
+This step is the one that needs a person, and it is why step 3 was started
+first: the two or three minutes I spend waiting for Omnivox to e-mail me a
+code are minutes LibreOffice can spend downloading.
 
 There is no password stored anywhere after this, on purpose. What that costs
 is unattended recovery: when the session cookie eventually expires, a person

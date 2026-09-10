@@ -22,6 +22,10 @@ credentials. If it fails, it is a network problem or a typo, not a permissions
 one: read the error out to me rather than reaching for `gh auth login`, which
 will not help.
 
+If `git` itself is missing, you do not need administrator rights to fix that:
+MinGit is a portable download that unpacks into a folder and works. Do that
+rather than telling me to go and install something.
+
 **Do not download the ZIP from the web page, and do not accept one if I hand
 you one.** A ZIP has no `.git` folder, and three things break the moment it is
 missing, none of them loudly:
