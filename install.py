@@ -192,8 +192,9 @@ def check_converters() -> None:
 
 
 def set_portal() -> None:
-    """The one question. Everything else here answers itself."""
-    step("Which cégep do you attend?")
+    """Fallback only. The settings page asks this now, so this runs when the
+    page was closed without answering, or on a machine with no browser."""
+    step("Checking which cégep this is pointed at")
     sys.path.insert(0, str(ROOT))
     import yaml
 
@@ -294,8 +295,8 @@ def sign_in() -> None:
 
 
 def choose_settings() -> None:
-    step("Which parts of this you want")
-    print("    A page opens in your browser with three questions.\n")
+    step("Your college, and which parts of this you want")
+    print("    A page opens in your browser. Four questions, then it closes.\n")
     run([str(VENV_PYTHON), "-m", "src.setup_page"])
 
 
@@ -346,13 +347,15 @@ def main(argv: list[str]) -> int:
         # Everything from here opens a window. An agent running this in a
         # sandbox gets a browser nobody can see, reports that it launched, and
         # leaves its user staring at a screen where nothing happened.
-        return _hand_over(
-            "choosing your college, signing in to Omnivox, and picking your settings"
-        )
+        return _hand_over("one settings page, then signing in to Omnivox")
 
+    # The settings page first, and it asks which college too. Two windows
+    # instead of a terminal prompt plus two windows, and the college has to be
+    # known before the sign-in anyway, because it decides which Omnivox to
+    # open.
+    choose_settings()
     set_portal()
     sign_in()
-    choose_settings()
     first_sync()
     finish()
     return 0

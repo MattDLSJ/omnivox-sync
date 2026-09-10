@@ -168,12 +168,12 @@ unless something has actually gone wrong.
 
 **Do not check in at each step. Run it.**
 
-There are exactly three moments where you stop, and they are the three where
-something only I can supply:
+There are exactly two moments where you stop, and both are windows on my
+screen rather than questions in this chat:
 
-1. **The name of my college.** Once, at the start.
-2. **Signing in to Omnivox**, in a browser window, not in this chat.
-3. **The three questions on the setup page**, also a page, not a chat.
+1. **A settings page**, which asks which college I attend and which three
+   features I want. Four answers, once.
+2. **Signing in to Omnivox**, in the browser window it opens next.
 
 That is the whole list. Everything else you do, and you tell me about
 afterwards. Do not ask me to approve a folder name, confirm a version number,

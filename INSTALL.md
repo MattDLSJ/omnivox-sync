@@ -20,8 +20,8 @@ nothing happens until I send another message, which turns a ten-minute setup
 into an hour of me typing "ok". If something is slow, say what you are
 running, run it, and tell me the result when it comes back.
 
-**Do not ask me to approve each step.** There are three moments where I have to
-answer something, and the installer below handles all three itself. Everything
+**Do not ask me to approve each step.** There are two moments where I have to
+answer something, both of them windows the installer opens for me. Everything
 else you do and tell me about afterwards.
 
 ### 1. Get the code with git. Not as a ZIP.
@@ -85,9 +85,10 @@ does the first sync.
     python3 install.py          macOS
     py install.py               Windows
 
-It stops three times, and each one is something only I can supply: the name of
-my college, signing in to Omnivox in the browser window it opens, and three
-questions on a settings page. Everything else it does by itself.
+It stops twice, and both are windows on my screen rather than questions in
+this chat: a settings page asking which college I attend and which three
+features I want, and then the browser it opens for me to sign in to Omnivox.
+Everything else it does by itself.
 
 **If you cannot open a window on my screen, say so and hand it to me.** Some
 agent tools run commands in a sandbox, where a browser launches somewhere I

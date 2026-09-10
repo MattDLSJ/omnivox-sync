@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v21 (2026-09-10)
+
+Setting up now stops twice instead of three times, and both are browser windows rather than one being a terminal prompt. The settings page asks which college you attend along with the three feature questions, resolves it against the live Omnivox, and only then opens the sign-in. Typing a name it cannot find tells you why and keeps the answers you already gave.
+
 ## v20 (2026-09-10)
 
 Fixes a setup that looked like it had hung. Some agent tools run commands in a sandbox, so the Omnivox sign-in opened a browser window the person could never see, while the command waited ten minutes for a sign-in that could not happen. The installer now finishes everything it can, then stops and asks you to run the same command from your own terminal, which picks up exactly where it left off.

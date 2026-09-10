@@ -191,3 +191,87 @@ def test_it_binds_to_localhost_only(config):
 def test_a_missing_config_is_a_clear_refusal_not_a_traceback(tmp_path):
     with pytest.raises(FileNotFoundError, match="config.example.yaml"):
         serve(tmp_path / "nope.yaml", open_browser=False, timeout_s=1)
+
+
+# ---------------------------------------------------------------------------
+# The college, asked on the page rather than at a terminal prompt
+#
+# It has to be known before the sign-in, because it decides which Omnivox to
+# open. Asking it here takes the setup from three stops to two, and both of
+# the remaining ones are browser windows: a terminal prompt is no more
+# reachable than a browser from an agent's sandbox, so splitting them bought
+# nothing.
+# ---------------------------------------------------------------------------
+
+
+def test_the_college_field_is_on_the_onboarding_form(config, monkeypatch):
+    import src.setup_page as page
+
+    monkeypatch.setattr(page, "current_values", lambda text: {})
+    body = page._render_form({}, "tok", "onboarding")
+    assert f'name="{page.COLLEGE_FIELD}"' in body
+
+
+def test_the_college_field_is_gone_once_it_is_known():
+    """A second visit must not ask again for something already answered."""
+    import src.setup_page as page
+
+    body = page._render_form({"__portal_set": "yes"}, "tok", "onboarding")
+    assert f'name="{page.COLLEGE_FIELD}"' not in body
+
+
+def test_the_settings_page_never_asks_for_the_college():
+    """`make settings` is for changing things later, when it is long known."""
+    import src.setup_page as page
+
+    body = page._render_form({}, "tok", "settings")
+    assert f'name="{page.COLLEGE_FIELD}"' not in body
+
+
+def test_a_name_that_resolves_is_written_as_the_portal(monkeypatch):
+    import src.setup_page as page
+    from src.portal_finder import Match
+
+    monkeypatch.setattr(
+        "src.portal_finder.find", lambda name: Match("cvm", "Cégep du Vieux Montréal", "fr")
+    )
+    updated, error = page._resolve_college("Vieux Montréal", 'school:\n  portal: ""\n')
+    assert error == ""
+    assert yaml.safe_load(updated)["school"]["portal"] == "cvm"
+
+
+def test_a_name_that_resolves_to_nothing_explains_itself(monkeypatch):
+    """"It did not work" sends somebody to reinstall. Telling them the address
+    could not be derived, and where to read it off, sends them to the answer."""
+    import src.setup_page as page
+
+    monkeypatch.setattr("src.portal_finder.find", lambda name: None)
+    updated, error = page._resolve_college("Hogwarts", 'school:\n  portal: ""\n')
+    assert updated is None
+    assert "address bar" in error
+    assert "unsupported" in error, "it must not read as a rejection of their college"
+
+
+def test_a_wrong_college_does_not_lose_the_answers_already_given(config, monkeypatch):
+    """Losing four answers to a typo in one field is how a form teaches people
+    to dread it."""
+    import src.setup_page as page
+
+    monkeypatch.setattr("src.portal_finder.find", lambda name: None)
+    served = _serve_in_background(config)
+    assert "url" in served
+    try:
+        body = urllib.parse.urlencode(
+            {page.COLLEGE_FIELD: "Nowhere", "notebooklm.mode": "off"}
+        ).encode()
+        save = served["url"].replace("/?t=", "/save?t=")
+        back = urllib.request.urlopen(
+            urllib.request.Request(save, data=body), timeout=10
+        ).read().decode()
+        assert 'value="off" checked' in back
+        assert f'name="{page.COLLEGE_FIELD}"' in back
+        assert yaml.safe_load(config.read_text(encoding="utf-8"))["notebooklm"]["mode"] == "auto", (
+            "nothing may be written while the form is being re-shown"
+        )
+    finally:
+        served["restore"]()

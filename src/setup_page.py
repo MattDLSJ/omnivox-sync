@@ -32,7 +32,7 @@ import urllib.parse
 import webbrowser
 from pathlib import Path
 
-from src.config_edit import set_many
+from src.config_edit import set_many, set_value
 
 #: Long enough that somebody can read the descriptions and go and check
 #: something, short enough that a forgotten window does not wedge a script.
@@ -48,6 +48,11 @@ TIMEOUT_S = 1800
 #: "settings", reachable any time from `make settings`, because a wall of
 #: choices in front of somebody who just wants their notes downloaded is how
 #: you lose them before the first sync.
+#: The college. Not a radio button like everything else: it is free text that
+#: gets resolved against the live portal, so it is handled separately by
+#: `_resolve_college` rather than through the option-matching in `_parse`.
+COLLEGE_FIELD = "__college"
+
 QUESTIONS = [
     {
         "key": "notebooklm.mode",
@@ -193,6 +198,11 @@ PAGE = """<!doctype html>
   .opt span{{display:block;color:var(--muted);font-size:14px;line-height:1.5;margin-top:2px}}
   .note{{border-left:3px solid var(--ok);padding:10px 14px;margin-top:14px;
     color:var(--muted);font-size:14px;line-height:1.55}}
+  .warn{{border-left:3px solid #b4531b;padding:10px 14px;margin:0 0 14px;
+    color:var(--ink);font-size:14.5px;line-height:1.55}}
+  input.text{{width:100%;padding:13px 14px;font-size:16px;border-radius:8px;
+    border:1px solid var(--rule);background:var(--paper);color:var(--ink)}}
+  input.text:focus{{outline:2px solid var(--accent);outline-offset:1px}}
   button{{background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;
     padding:15px 30px;font-size:16.5px;font-weight:650;cursor:pointer;width:100%}}
   button:hover{{filter:brightness(1.08)}}
@@ -211,12 +221,12 @@ def questions_for(tier: str) -> list[dict]:
     return list(QUESTIONS)
 
 
-def _render_form(current: dict, token: str, tier: str) -> str:
+def _render_form(current: dict, token: str, tier: str, problem: str = "") -> str:
     onboarding = tier == "onboarding"
     parts = [
-        "<h1>%s</h1>" % ("What do you want this to do?" if onboarding else "Settings"),
+        "<h1>%s</h1>" % ("Set up your semester" if onboarding else "Settings"),
         "<p class=\"sub\">%s</p>" % (
-            "Three questions. Everything else has a sensible default, and "
+            "Four questions, once. Everything else has a sensible default, and "
             "<code>make settings</code> opens the rest whenever you want them."
             if onboarding else
             "Change any of these at any time. Nothing here is permanent, and "
@@ -224,6 +234,21 @@ def _render_form(current: dict, token: str, tier: str) -> str:
         ),
         f"<form method=\"post\" action=\"/save?t={html.escape(token)}\">",
     ]
+    # `problem` means they just typed a college and it did not resolve, so the
+    # field comes back regardless of what else suggests it is already known.
+    if onboarding and (problem or not current.get("__portal_set")):
+        parts.append(
+            "<fieldset><legend>Your college</legend>"
+            "<p class=\"lede\">Omnivox is one system that nearly every cégep in "
+            "Quebec runs, and the only thing that differs is the address. Type "
+            "the name of yours the way you would say it out loud, in full: "
+            "several colleges share a first word.</p>"
+            + (f"<p class=\"warn\">{html.escape(problem)}</p>" if problem else "")
+            + f"<input class=\"text\" type=\"text\" name=\"{COLLEGE_FIELD}\" "
+            "placeholder=\"e.g. Édouard-Montpetit, Ahuntsic, Vieux Montréal\" "
+            "autofocus required>"
+            "</fieldset>"
+        )
     for question in questions_for(tier):
         chosen = str(current.get(question["key"], question["default"]))
         parts.append("<fieldset><legend>%s</legend>" % html.escape(question["title"]))
@@ -263,6 +288,22 @@ def _render_done(written: dict) -> str:
     )
 
 
+def _resolve_college(name: str, config_text: str):
+    """(new config text, error). Resolves against the live portal, never guesses."""
+    from src.portal_finder import find
+
+    got = find(name)
+    if not got:
+        return None, (
+            f"No Omnivox portal answered for \u201c{name}\u201d. That does not mean "
+            "your college is unsupported: it means the address could not be "
+            "worked out from the name. Try the fuller name, or sign in to "
+            "Omnivox in another tab and copy what comes before .omnivox.ca in "
+            "the address bar."
+        )
+    return set_value(config_text, ["school", "portal"], got.slug), ""
+
+
 def current_values(config_text: str) -> dict:
     """What the form should start on, read from the config as it stands."""
     import yaml
@@ -272,6 +313,12 @@ def current_values(config_text: str) -> dict:
     except Exception:  # a half-written config still deserves a working form
         return {}
     out = {}
+    # Whether the college is already known, so a second visit does not ask for
+    # it again. An empty `portal:` means the built-in default, so a stored
+    # browser profile is the better evidence that somebody has been here.
+    school = loaded.get("school") or {}
+    if school.get("portal") or (Path(__file__).resolve().parents[1] / "state" / "omnivox-profile").exists():
+        out["__portal_set"] = "yes"
     for question in QUESTIONS:
         node = loaded
         for part in question["key"].split("."):
@@ -315,6 +362,7 @@ def serve(config_path: Path, *, tier: str = "onboarding", open_browser: bool = T
 
     token = secrets.token_urlsafe(16)
     written: dict = {}
+    problem = [""]  # a list so the handler can write to it
     finished = threading.Event()
 
     class Handler(http.server.BaseHTTPRequestHandler):
@@ -343,7 +391,9 @@ def serve(config_path: Path, *, tier: str = "onboarding", open_browser: bool = T
                 self._send(PAGE.format(body="<h1>Not this link.</h1>"), 403)
                 return
             text = config_path.read_text(encoding="utf-8")
-            self._send(PAGE.format(body=_render_form(current_values(text), token, tier)))
+            self._send(
+                PAGE.format(body=_render_form(current_values(text), token, tier, problem[0]))
+            )
 
         def do_POST(self):  # noqa: N802
             if not self._authorised():
@@ -351,12 +401,30 @@ def serve(config_path: Path, *, tier: str = "onboarding", open_browser: bool = T
                 return
             length = int(self.headers.get("Content-Length") or 0)
             body = self.rfile.read(length).decode("utf-8", errors="replace")
+            posted = urllib.parse.parse_qs(body)
             chosen = _parse(body)
+            text = config_path.read_text(encoding="utf-8")
+
+            college = (posted.get(COLLEGE_FIELD) or [""])[0].strip()
+            if college:
+                updated, error = _resolve_college(college, text)
+                if error:
+                    # Back to the form with the message, keeping the radio
+                    # answers they already gave. Losing those to a typo in one
+                    # field is how a form teaches people to dread it.
+                    problem[0] = error
+                    values = current_values(text)
+                    values.update({k: str(v).lower() for k, v in chosen.items()})
+                    self._send(PAGE.format(body=_render_form(values, token, tier, error)))
+                    return
+                text = updated
+                written["school.portal"] = college
+
             if chosen:
-                text = config_path.read_text(encoding="utf-8")
-                config_path.write_text(set_many(text, chosen), encoding="utf-8")
+                text = set_many(text, chosen)
+            config_path.write_text(text, encoding="utf-8")
             written.update(chosen)
-            self._send(PAGE.format(body=_render_done(chosen)))
+            self._send(PAGE.format(body=_render_done(written)))
             finished.set()
 
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
