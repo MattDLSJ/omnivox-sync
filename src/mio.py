@@ -207,23 +207,39 @@ def sync_mio(cfg, driver, *, dry_run: bool = False, logger=None) -> list[dict]:
 
     full = bool(getattr(cfg, "mio_full_bodies", False))
     try:
-        messages = driver.list_mio(with_bodies=full)
+        messages = driver.list_mio()
     except Exception as exc:  # noqa: BLE001
         log.warning("Could not read MIO: %s", exc)
         return []
 
-    by_code = {c.code: c for c in cfg.courses}
     for message in messages or []:
-        detail = parse_detail(message.get("body", "")) if message.get("body") else {}
-        # The opened message names its own course, which beats matching a
-        # teacher's name against a sender string.
-        course = by_code.get(message.get("course_code") or "")
-        if course is None:
-            course = match_course(
-                detail.get("sender") or message.get("sender", ""), cfg.courses
-            )
+        course = match_course(message.get("sender", ""), cfg.courses)
         if course is None:
             continue  # not a teacher of yours; the inbox is full of those
+
+        # Everything above this line is free. Opening a message is not: it
+        # costs seconds and it marks the message read, so it happens only for
+        # one that is from a teacher AND has not been saved already.
+        preview_key = (
+            message.get("id")
+            or f"{message.get('sender')}\x1f{message.get('preview', '')[:60]}"
+        )
+        if preview_key in known:
+            continue
+
+        detail = {}
+        if full:
+            try:
+                body, code = driver.read_mio_body(message.get("id", ""))
+            except Exception as exc:  # noqa: BLE001 - one bad row, not the run
+                log.warning("Could not open a MIO: %s", exc)
+                body, code = "", ""
+            if body:
+                detail = parse_detail(body)
+                # The opened message names its own course, which beats matching
+                # a teacher's name against a sender string.
+                by_code = {c.code: c for c in cfg.courses}
+                course = by_code.get(code) or course
         if detail.get("body"):
             subject = detail.get("subject") or ""
             body = detail["body"]
@@ -231,9 +247,7 @@ def sync_mio(cfg, driver, *, dry_run: bool = False, logger=None) -> list[dict]:
         else:
             subject, body = split_subject(message.get("preview", ""))
             date = message.get("date") or "" 
-        key = message.get("id") or f"{message.get('sender')}\x1f{subject}\x1f{date}"
-        if key in known:
-            continue
+        key = preview_key
 
         name = f"{date} - {safe_name(subject)}.md" if date else f"{safe_name(subject)}.md"
         folder = cfg.folder_for(course) / cfg.mio_folder

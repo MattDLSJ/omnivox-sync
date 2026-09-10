@@ -1278,26 +1278,36 @@ class OmnivoxSession:
     #: a teacher's name.
     _MIO_SENDER_COURSE = re.compile(r"\((\d{3}-[A-Z0-9]{3}-[A-Z]{2})")
 
-    def read_mio_body(self, index: int) -> tuple[str, str]:
+    def read_mio_body(self, message_id: str) -> tuple[str, str]:
         """(body, course code) for one message, by opening it.
 
         **This marks the message read**, which is why it is off unless asked
         for. There is no way round it: the id in the detail URL is the row's
-        checkbox id, which is a GUID with the row's position glued on the end,
-        so it cannot be built without the row, and reaching the row means
-        clicking it.
+        checkbox id, a GUID with the row's position glued on the end, so it
+        cannot be built without the row, and reaching the row means clicking.
+
+        Addressed by message id and NOT by position. Positions looked obvious
+        and were wrong twice over: the listing skips rows, so its numbering
+        already differed from the DOM's, and clicking a row marks it read,
+        which changes its class and shifts every row after it. The result was
+        each message opening its neighbour's contents, so a teacher's name in
+        the list ended up over a stranger's message on disk.
 
         The list frame must already be open; `list_mio` leaves it that way.
         """
+        if not message_id:
+            return "", ""
         frame = next(
             (f for f in self.page.frames if "/MioListe.aspx" in (f.url or "")), None
         )
         if frame is None:
             return "", ""
-        rows = frame.locator("tr.norm")
-        if index >= rows.count():
+        # The checkbox id is "chk" + the GUID + the row's position, so a prefix
+        # match finds the row wherever it has moved to.
+        row = frame.locator(f'tr:has(input[id^="chk{message_id}"])').first
+        if row.count() == 0:
             return "", ""
-        rows.nth(index).click()
+        row.click()
         self.page.wait_for_timeout(2500)
         detail = next(
             (f for f in self.page.frames if "MioDetail" in (f.url or "")), None
@@ -1310,7 +1320,7 @@ class OmnivoxSession:
         found = self._MIO_SENDER_COURSE.search(text)
         return text, (found.group(1) if found else "")
 
-    def list_mio(self, *, with_bodies: bool = False) -> list[dict]:
+    def list_mio(self, *, with_bodies: bool = False) -> list[dict]:  # noqa: ARG002
         """Every message in the inbox: who, what, when, and the preview.
 
         With `with_bodies=False`, the default, nothing is opened and nothing is
@@ -1328,12 +1338,18 @@ class OmnivoxSession:
             r"""() => {
           const clean = e => (e.textContent||'').replace(/\s+/g,' ').trim();
           const out = [];
-          for (const tr of document.querySelectorAll('tr.norm')) {
+          const trs = [...document.querySelectorAll('tr.norm')];
+          for (let i = 0; i < trs.length; i++) {
+            const tr = trs[i];
             const cells = [...tr.querySelectorAll('td')].map(clean).filter(Boolean);
             if (!cells.length) continue;
             const dot = tr.querySelector('[data-message]');
             const isNew = tr.querySelector('input[id^=hidIsNew]');
             out.push({
+              // The row's position in the DOM, which is what has to be clicked
+              // later. Numbering the returned list instead is off by however
+              // many rows were skipped, and it opens the wrong message.
+              row: i,
               id: dot ? (dot.getAttribute('data-message')||'') : '',
               cells,
               unread: isNew ? String(isNew.value||'').toLowerCase() !== 'non' : false,
@@ -1366,20 +1382,19 @@ class OmnivoxSession:
                 "preview": preview,
                 "date": date,
                 "unread": bool(row.get("unread")),
-                "index": len(items),
+                # The DOM row, not this list's position: filtering happens
+                # above, so the two diverge and clicking the wrong one opens
+                # somebody else's message.
+                "index": row.get("row", len(items)),
                 "body": "",
                 "course_code": "",
             })
 
-        if with_bodies:
-            for item in items:
-                try:
-                    body, code = self.read_mio_body(item["index"])
-                except Exception as exc:  # noqa: BLE001 - one bad row, not the run
-                    self.log.warning("Could not open a MIO: %s", exc)
-                    continue
-                item["body"] = body
-                item["course_code"] = code
+        # Deliberately NOT fetching bodies here, even when asked. This has no
+        # idea which messages the caller will keep, and on a real inbox that
+        # was 50 messages opened at 2.5 s each to keep 7, three times a day,
+        # for the rest of the semester. The caller filters first and asks for
+        # the handful it actually wants.
         return items
 
     def _collect_mio(self) -> list[dict]:

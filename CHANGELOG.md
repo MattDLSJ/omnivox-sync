@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v29 (2026-09-10)
+
+Fixes MIO saving the wrong message under the right name. Messages were opened by position, and reading one shifts the positions of the rest, so each opened its neighbour's contents: a teacher's name ended up above a stranger's message in that teacher's folder. They are addressed by id now. Also stops opening the whole inbox to keep a handful of it, which was most of the time a sync took.
+
 ## v28 (2026-09-10)
 
 MIO can now be saved in full rather than as the inbox preview: set mio: full_bodies: true. It is off by default because there is no way to read a message without opening it, and opening it marks it read, so turning it on means every unread message from a teacher becomes read on the next run. The saved file always says which of the two it is.

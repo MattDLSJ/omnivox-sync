@@ -25,12 +25,22 @@ class FakeDriver:
             "unread": False,
         }]
         self._raises = raises
+        self.opened: list[int] = []
 
     def list_mio(self, *, with_bodies=False):
         if self._raises:
             raise self._raises
-        self.asked_for_bodies = with_bodies
         return list(self._messages)
+
+    def read_mio_body(self, message_id):
+        """Opening a message is what marks it read, so the tests count these.
+
+        Keyed by id, never by position: the real list skips rows and reorders
+        them as they are read, so an index opened somebody else's message.
+        """
+        self.opened.append(message_id)
+        found = next((m for m in self._messages if m.get("id") == message_id), {})
+        return found.get("body", ""), found.get("course_code", "")
 
 
 # --------------------------------------------------------- splitting the cell
@@ -198,17 +208,42 @@ def test_the_hyphenated_detail_date_is_understood():
     assert detail_date("nothing dateish") == ""
 
 
-def test_bodies_are_not_requested_unless_configured(loaded_config):
+def test_no_message_is_opened_unless_configured(loaded_config):
     driver = FakeDriver()
     sync_mio(loaded_config, driver, logger=None)
-    assert driver.asked_for_bodies is False, "opening a message marks it read"
+    assert driver.opened == [], "opening a message is what marks it read"
 
 
-def test_bodies_are_requested_when_configured(loaded_config):
+def test_only_a_teacher_message_is_ever_opened(loaded_config):
+    """On a real inbox this was 50 messages opened at 2.5 s each to keep 7,
+    three times a day, for the rest of the semester."""
     object.__setattr__(loaded_config, "mio_full_bodies", True)
-    driver = FakeDriver()
+    course = loaded_config.courses[0]
+    driver = FakeDriver([
+        {"id": "a", "sender": "Association étudiante AGECEM", "date": "",
+         "preview": "Venez au party", "unread": False, "index": 0},
+        {"id": "b", "sender": course.teacher, "date": "2026-09-08",
+         "preview": "Devoir Bonjour", "unread": False, "index": 1, "body": DETAIL,
+         "course_code": course.code},
+    ])
     sync_mio(loaded_config, driver, logger=None)
-    assert driver.asked_for_bodies is True
+    assert driver.opened == ["b"], "the association blast must not be opened"
+
+
+def test_a_message_already_saved_is_not_opened_again(loaded_config):
+    """The expensive half must not be paid twice for the same message."""
+    object.__setattr__(loaded_config, "mio_full_bodies", True)
+    course = loaded_config.courses[0]
+    messages = [{"id": "b", "sender": course.teacher, "date": "2026-09-08",
+                 "preview": "Devoir Bonjour", "unread": False, "index": 0,
+                 "body": DETAIL, "course_code": course.code}]
+    driver = FakeDriver(list(messages))
+    sync_mio(loaded_config, driver, logger=None)
+    assert driver.opened == ["b"]
+
+    again = FakeDriver(list(messages))
+    sync_mio(loaded_config, again, logger=None)
+    assert again.opened == [], "already saved, so there is nothing to open it for"
 
 
 def test_a_full_body_is_saved_without_the_truncation_note(loaded_config):
@@ -218,7 +253,7 @@ def test_a_full_body_is_saved_without_the_truncation_note(loaded_config):
     course = loaded_config.courses[0]
     driver = FakeDriver([{
         "id": "g9", "sender": course.teacher, "date": "", "preview": "Ouvrage Bonjour",
-        "unread": False, "body": DETAIL, "course_code": course.code,
+        "unread": False, "index": 0, "body": DETAIL, "course_code": course.code,
     }])
     sync_mio(loaded_config, driver, logger=None)
 
@@ -235,8 +270,9 @@ def test_the_course_code_in_the_message_beats_matching_the_name(loaded_config):
     object.__setattr__(loaded_config, "mio_full_bodies", True)
     course = loaded_config.courses[0]
     driver = FakeDriver([{
-        "id": "g10", "sender": "Somebody Not In The Config", "date": "",
-        "preview": "x", "unread": False, "body": DETAIL, "course_code": course.code,
+        "id": "g10", "sender": course.teacher, "date": "",
+        "preview": "x", "unread": False, "index": 0, "body": DETAIL,
+        "course_code": course.code,
     }])
     assert len(sync_mio(loaded_config, driver, logger=None)) == 1
 
@@ -249,3 +285,41 @@ def test_the_course_is_not_repeated_in_the_byline():
 
     assert clean_sender("Jordan Tremblay (340-101-MQ gr.1060 (A2026))") == "Jordan Tremblay"
     assert clean_sender("Jordan Tremblay") == "Jordan Tremblay"
+
+
+def test_a_stranger_is_not_filed_even_when_the_message_names_a_course(loaded_config):
+    """This one really happened. An activity invitation and two administrative
+    notices were filed into three different course folders, because the opened
+    message named a course and that was allowed to override the sender check.
+    Being addressed to a class does not make something course material.
+    """
+    object.__setattr__(loaded_config, "mio_full_bodies", True)
+    course = loaded_config.courses[0]
+    driver = FakeDriver([{
+        "id": "stranger", "sender": "Association étudiante AGECEM", "date": "",
+        "preview": "Inscriptions activités socioculturelles", "unread": False,
+        "index": 0, "body": DETAIL, "course_code": course.code,
+    }])
+
+    assert sync_mio(loaded_config, driver, logger=None) == []
+    assert driver.opened == [], "and it must not be opened to find that out"
+
+
+def test_a_message_is_opened_by_id_and_never_by_position(loaded_config):
+    """This one really happened, twice over. The listing skips rows, so its
+    numbering already differed from the page's, and clicking a row marks it
+    read, which changes its class and shifts every row after it. Each message
+    opened its neighbour's contents, so a teacher's name from the list ended
+    up above a stranger's message on disk.
+    """
+    object.__setattr__(loaded_config, "mio_full_bodies", True)
+    course = loaded_config.courses[0]
+    driver = FakeDriver([{
+        "id": "the-guid", "sender": course.teacher, "date": "",
+        "preview": "Devoir Bonjour", "unread": False, "index": 7,
+        "body": DETAIL, "course_code": course.code,
+    }])
+
+    sync_mio(loaded_config, driver, logger=None)
+
+    assert driver.opened == ["the-guid"], "an index would have been used here"
