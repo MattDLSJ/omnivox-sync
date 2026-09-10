@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from typing import NamedTuple
 import urllib.error
 import urllib.request
 
@@ -38,10 +39,26 @@ TIMEOUT_S = 8
 #: and to keep a known-good spelling ahead of a generated one. Absent from
 #: here means unknown, never means unsupported.
 VERIFIED = {
-    "cegepmontpetit": "Cégep Édouard-Montpetit",
-    "collegeahuntsic": "Collège Ahuntsic",
-    "slc": "Cégep Champlain-St.Lawrence",
+    "cegepmontpetit": ("Cégep Édouard-Montpetit", "fr"),
+    "collegeahuntsic": ("Collège Ahuntsic", "fr"),
+    "slc": ("Cégep Champlain-St.Lawrence", "en"),
 }
+
+#: How to tell a French portal from an English one WITHOUT asking anybody.
+#:
+#: The setup used to ask the student "is your interface in French or English?",
+#: which is a question about a config file dressed up as a question about their
+#: life. They do not know why it is being asked and cannot judge the
+#: consequence of getting it wrong, which is that the scraper finds nothing and
+#: reports "no documents" cheerfully, forever.
+#:
+#: The sign-in page is public and answers it. Checked live against three
+#: portals: Édouard-Montpetit and Ahuntsic carry "mot de passe" sixteen times
+#: and no English marker; Champlain St-Lawrence carries "student number" and
+#: "forgot" and no French one. Note that "password" alone is useless, because
+#: it appears in both as an HTML input type.
+_FRENCH_MARKERS = ("mot de passe", "numéro de dossier", "oubliez")
+_ENGLISH_MARKERS = ("student number", "forgot your password", "forgot password")
 
 #: Words that appear in a college's name and never in its hostname, or that
 #: appear so often they are useless for telling two apart.
@@ -114,8 +131,20 @@ def _get(url: str) -> str:
     return raw.decode("utf-8", errors="replace")
 
 
-def probe(slug: str, fetch=_get) -> str | None:
-    """The college's own name if `slug` is a real portal, else None.
+def language_of(html: str) -> str:
+    """"fr", "en", or "" when the page does not say. Never guesses."""
+    lowered = html.lower()
+    french = any(m in lowered for m in _FRENCH_MARKERS)
+    english = any(m in lowered for m in _ENGLISH_MARKERS)
+    if french and not english:
+        return "fr"
+    if english and not french:
+        return "en"
+    return ""
+
+
+def probe(slug: str, fetch=_get) -> tuple[str, str] | None:
+    """(college name, language) if `slug` is a real portal, else None.
 
     A hostname that does not exist fails to resolve, which is the common case
     and the reason a wrong spelling cannot be mistaken for a right one. A
@@ -133,7 +162,7 @@ def probe(slug: str, fetch=_get) -> str | None:
         return None
     # "Omnivox - Cégep Édouard-Montpetit" -> the half that identifies a school.
     college = re.sub(r"^\s*omnivox\s*[-–|]\s*", "", title, flags=re.I).strip()
-    return college or title
+    return (college or title), language_of(html)
 
 
 def _words(name: str) -> set[str]:
@@ -145,10 +174,16 @@ def _words(name: str) -> set[str]:
     }
 
 
-def find(name: str, fetch=_get) -> tuple[str, str] | None:
-    """(hostname, college name) for `name`, or None when nothing answers."""
+class Match(NamedTuple):
+    slug: str
+    college: str
+    language: str  # "fr", "en", or "" when the page did not say
+
+
+def find(name: str, fetch=_get) -> Match | None:
+    """The portal for `name`, or None when nothing answers."""
     typed = _words(name)
-    for slug, college in VERIFIED.items():
+    for slug, (college, language) in VERIFIED.items():
         # Every distinguishing word of the college has to be in what was
         # typed. A plain substring test was worse than useless here:
         # "Champlain" is inside "Cégep Champlain-St.Lawrence", so a student at
@@ -158,11 +193,11 @@ def find(name: str, fetch=_get) -> tuple[str, str] | None:
         # because a wrong hostname does not answer.
         known = _words(college)
         if known and known <= typed:
-            return slug, college
+            return Match(slug, college, language)
     for slug in slugs(name):
-        college = probe(slug, fetch)
-        if college:
-            return slug, college
+        got = probe(slug, fetch)
+        if got:
+            return Match(slug, got[0], got[1])
     return None
 
 
@@ -194,14 +229,41 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    slug, college = got
-    print(
-        f"\nFound {college}\n  https://{slug}.{DOMAIN}\n\n"
-        "If that is your college, this block goes in config.yaml:\n\n"
-        "  school:\n"
-        f"    portal: \"{slug}\"\n\n"
-        "If it is not, run this again with the fuller name of your college."
-    )
+    print(f"\nFound {got.college}\n  https://{got.slug}.{DOMAIN}")
+    if got.language == "fr":
+        print("  Its sign-in page is in French, which is what this expects.")
+        print("\nIf that is your college, this block goes in config.yaml:\n")
+        print("  school:")
+        print(f'    portal: "{got.slug}"')
+    elif got.language == "en":
+        print("  Its sign-in page is in ENGLISH.")
+        print(
+            "\nThat matters, and it is the one thing that needs work. This "
+            "navigates by\nclicking visible text, and the text it clicks is "
+            "French by default. Wrong\nlabels do not raise an error: every "
+            "course reports no documents, forever.\n\n"
+            "So put this in config.yaml now:\n"
+        )
+        print("  school:")
+        print(f'    portal: "{got.slug}"')
+        print("    labels:")
+        print('      lea_link_name: "Lea"')
+        print('      logged_in_text: ""       # fill these in after signing in')
+        print('      docs_link: ""')
+        print('      travaux_link: ""')
+        print(
+            "\nThen, once signed in, read the ACTUAL names off the page and "
+            "fill them in:\nwhat the LÉA link is called, the heading on the "
+            "home page where French says\n\"Quoi de neuf\", and what the "
+            "documents and assignment pages are called\ninside a course. Do "
+            "not guess them."
+        )
+    else:
+        print("  Could not tell what language its sign-in page is in.")
+        print("\nIf that is your college, this block goes in config.yaml:\n")
+        print("  school:")
+        print(f'    portal: "{got.slug}"')
+    print("\nIf it is not your college, run this again with its fuller name.")
     return 0
 
 

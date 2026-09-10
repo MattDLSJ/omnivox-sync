@@ -10,9 +10,16 @@ Nothing in this file touches the network. `fetch` is injected everywhere.
 
 import pytest
 
-from src.portal_finder import find, probe, slugs
+from src.portal_finder import find, language_of, probe, slugs
 
-OMNIVOX = "<html><head><title>Omnivox - Cégep du Vieux Montréal</title></head>"
+OMNIVOX = (
+    "<html><head><title>Omnivox - Cégep du Vieux Montréal</title></head>"
+    "<body>Mot de passe</body></html>"
+)
+ENGLISH = (
+    "<html><head><title>Omnivox - Dawson College</title></head>"
+    "<body>Student number ... Forgot your password?</body></html>"
+)
 
 
 @pytest.mark.parametrize(
@@ -57,7 +64,7 @@ def test_a_name_of_nothing_but_noise_still_returns_something():
 def test_probe_reads_the_college_name_out_of_the_page_title():
     """The point of probing rather than guessing: the answer identifies itself,
     so a person can tell at a glance whether it is their school."""
-    assert probe("cvm", fetch=lambda url: OMNIVOX) == "Cégep du Vieux Montréal"
+    assert probe("cvm", fetch=lambda url: OMNIVOX)[0] == "Cégep du Vieux Montréal"
 
 
 def test_probe_rejects_a_host_that_is_not_omnivox():
@@ -85,9 +92,11 @@ def test_find_answers_a_known_college_without_touching_the_network():
     def explode(url):
         raise AssertionError(f"should not have fetched {url}")
 
-    assert find("Édouard-Montpetit", fetch=explode) == (
+    got = find("Édouard-Montpetit", fetch=explode)
+    assert (got.slug, got.college, got.language) == (
         "cegepmontpetit",
         "Cégep Édouard-Montpetit",
+        "fr",
     )
 
 
@@ -100,7 +109,8 @@ def test_find_probes_when_the_college_is_not_one_it_knows():
             raise OSError("no such host")
         return OMNIVOX
 
-    assert find("Vieux Montréal", fetch=only_cvm) == ("cvm", "Cégep du Vieux Montréal")
+    got = find("Vieux Montréal", fetch=only_cvm)
+    assert (got.slug, got.college) == ("cvm", "Cégep du Vieux Montréal")
 
 
 def test_find_gives_up_rather_than_returning_a_guess():
@@ -136,10 +146,8 @@ def test_the_full_name_still_matches_the_known_college():
     def explode(url):
         raise AssertionError("should not have needed the network")
 
-    assert find("Champlain St-Lawrence", fetch=explode) == (
-        "slc",
-        "Cégep Champlain-St.Lawrence",
-    )
+    got = find("Champlain St-Lawrence", fetch=explode)
+    assert (got.slug, got.college) == ("slc", "Cégep Champlain-St.Lawrence")
 
 
 def test_extra_words_do_not_stop_a_known_college_matching():
@@ -149,3 +157,53 @@ def test_extra_words_do_not_stop_a_known_college_matching():
         raise AssertionError("should not have needed the network")
 
     assert find("cégep Édouard-Montpetit in Longueuil", fetch=explode)[0] == "cegepmontpetit"
+
+
+# ---------------------------------------------------------------------------
+# Language, which nobody should have to be asked about
+#
+# The setup used to ask "is your Omnivox interface in French or English?".
+# That is a question about a config file wearing the costume of a question
+# about somebody's life: they do not know why it is being asked, and they
+# cannot judge the cost of getting it wrong. The cost is that the scraper
+# navigates by clicking French text, finds nothing, and reports "no documents"
+# cheerfully, forever.
+#
+# The sign-in page is public and answers it. The markers below were read off
+# three live portals, not guessed.
+# ---------------------------------------------------------------------------
+
+
+def test_a_french_portal_is_recognised_as_french():
+    assert language_of("<html><body>Mot de passe</body></html>") == "fr"
+
+
+def test_an_english_portal_is_recognised_as_english():
+    assert language_of("<html><body>Student number</body></html>") == "en"
+
+
+def test_the_word_password_alone_decides_nothing():
+    """It appears on every Omnivox page in both languages as an HTML input
+    type, so treating it as an English marker would call Édouard-Montpetit an
+    English college."""
+    assert language_of('<input type="password">') == ""
+
+
+def test_a_page_that_says_nothing_either_way_returns_nothing():
+    """Better to say "could not tell" than to pick one and be silently wrong
+    on every course."""
+    assert language_of("<html><body>Omnivox</body></html>") == ""
+
+
+def test_a_page_carrying_both_languages_is_not_guessed_at():
+    both = "<html><body>Mot de passe / Student number</body></html>"
+    assert language_of(both) == ""
+
+
+def test_probe_reports_the_language_with_the_college():
+    assert probe("dawson", fetch=lambda url: ENGLISH) == ("Dawson College", "en")
+
+
+def test_find_carries_the_language_through():
+    got = find("Dawson", fetch=lambda url: ENGLISH)
+    assert got.language == "en"

@@ -93,10 +93,13 @@ eventually.
    a first word across different campuses, and a partial name is refused
    rather than guessed at.
 
-   Ask separately whether my college's interface is in **English**. Several
-   are, the scraper navigates by clicking visible French text, and there is a
-   `labels:` block for exactly this. Getting it wrong does not raise an error.
-   It reports "no documents" cheerfully, forever.
+   **Do not ask me what language my Omnivox is in.** `make find-portal` reads
+   that off the public sign-in page and tells you. It is a question about a
+   config file wearing the costume of a question about my life: I would not
+   know why you were asking, and I cannot judge the cost of answering wrong,
+   which is that every course reports no documents forever. If it comes back
+   English, `find-portal` prints exactly what to do about it, and that part is
+   your job rather than mine.
 
 4. **Python 3.11 or newer.** `python3 --version` on macOS, `py --version` on
    Windows. Show me what it says.

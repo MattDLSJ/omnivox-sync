@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v13 (2026-09-10)
+
+Setup no longer asks whether your Omnivox is in French or English. It reads that off the public sign-in page, tells you which it found, and if the answer is English it prints exactly what still needs doing. One less question, and one less way to get a silent wrong answer.
+
 ## v12 (2026-09-10)
 
 Setting up is faster: the LibreOffice and ffmpeg downloads now run while you are signing in to Omnivox, instead of before it. Neither is needed until the first sync. The README now says what the whole thing costs on disk, measured rather than estimated: about 1.6 GB of tooling plus roughly 100 MB per semester of documents.
