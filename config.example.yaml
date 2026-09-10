@@ -106,6 +106,12 @@ recordings_folder: "2_Voice"
 # Same rule, for pages pulled out of the i+ Interactif digital textbooks.
 books_folder: "3_Livres"
 
+# Where teacher announcements are saved, one Markdown file each, beside the
+# course documents so they reach NotebookLM through the same queue. A
+# communiqué is where instructions like "se procurer l'ouvrage à la COOP"
+# actually live, and nothing else in this project ever read one.
+communiques_folder: "4_Communiques"
+
 # Substring of the input device name, as shown in System Settings > Sound.
 # Empty = the system default input.
 microphone: ""

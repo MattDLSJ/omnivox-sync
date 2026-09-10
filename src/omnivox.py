@@ -20,6 +20,21 @@ from playwright.sync_api import Page, sync_playwright
 DEFAULT_TIMEOUT_MS = 30_000
 
 
+def _strip_leading_date(text: str) -> str:
+    """"8 sepÀ compléter avant le cours" -> "À compléter avant le cours".
+
+    The card renders the date and the title as two spans with no separator, so
+    they arrive glued together with no space to split on.
+    """
+    return re.sub(
+        r"^\s*\d{1,2}\s*"
+        r"(janv?|f[ée]vr?|mars|avr|mai|juin|juil|ao[uû]t|sept?|oct|nov|d[ée]c)[a-z]*\.?\s*",
+        "",
+        text,
+        flags=re.I,
+    ).strip()
+
+
 @dataclass(frozen=True)
 class Portal:
     """Which Omnivox this talks to, and what the buttons are called on it.
@@ -1128,6 +1143,106 @@ class OmnivoxSession:
                 }
             )
         return items
+
+    def list_communiques(self) -> dict[str, list[dict]]:
+        """Every course's communiqués, keyed by course code.
+
+        A communiqué is a teacher's announcement to the whole class, and it is
+        where the actual instruction often lives: "à compléter avant le cours
+        de vendredi" is a communiqué, not a document. Nothing in this project
+        had ever read one. They were not being missed intermittently, they were
+        never being looked at: the word did not appear anywhere in the source.
+
+        They are not a section inside a course. They live on the LÉA landing
+        page, in a panel on each course card, which is why one page load
+        returns them for every course at once.
+
+        The body is behind OpenCentre('/cvir/comm/Communique.aspx?...'), an
+        ordinary URL that can be fetched. Read the caller's note about the Ref
+        in that URL going stale.
+        """
+        self.list_courses()  # the LÉA landing page, where the cards live
+        rows = self.page.evaluate(
+            r"""() => {
+          const clean = e => (e.textContent||'').replace(/\s+/g,' ').trim();
+          const out = {};
+          for (const card of document.querySelectorAll('.card-panel, .card')) {
+            const head = clean(card).slice(0, 40);
+            const code = (head.match(/\b(\d{3}-[A-Z0-9]{3}-[A-Z]{2})\b/) || [])[1];
+            if (!code) continue;
+            for (const item of card.querySelectorAll('.card-panel-item')) {
+              const title = clean(item.querySelector('.item-header-title') || item);
+              if (!/Communiqu/i.test(title)) continue;
+              const found = [];
+              for (const row of item.querySelectorAll('.communique-date-title-wrapper')) {
+                const onclick = row.getAttribute('onclick') || '';
+                const url = (onclick.match(/OpenCentre\('([^']+)'/) || [])[1] || '';
+                // The unread marker is a dot rendered as a sibling icon.
+                const unread = /unread|nouveau|new/i.test(
+                  String(row.className || '') + ' ' + String(row.parentElement?.className || '')
+                );
+                found.push({text: clean(row).slice(0, 200), url, unread});
+              }
+              if (found.length) out[code] = found;
+            }
+          }
+          return out;
+        }"""
+        )
+        cleaned: dict[str, list[dict]] = {}
+        for code, items in (rows or {}).items():
+            good = []
+            for item in items:
+                url = item.get("url") or ""
+                if not url:
+                    continue
+                text = item.get("text") or ""
+                good.append({
+                    "date": parse_publish_date(text) or "",
+                    "title": _strip_leading_date(text),
+                    "url": url,
+                    "unread": bool(item.get("unread")),
+                })
+            if good:
+                cleaned[code] = good
+        return cleaned
+
+    #: "Publié par Jordan Tremblay le 8 sep 2026" at the top of the body. The
+    #: card glues the date to the title with no separator and truncates both,
+    #: so the body is the only place either can be read reliably.
+    _PUBLISHED_BY = re.compile(
+        r"Publi[ée]e?\s+par\s+(?P<who>.+?)\s+le\s+(?P<when>\d{1,2}\s+\S+\s+\d{4})",
+        re.I,
+    )
+
+    def communique_meta(self, body: str) -> tuple[str, str]:
+        """(author, ISO date) read out of a communiqué's own text."""
+        found = self._PUBLISHED_BY.search(body or "")
+        if not found:
+            return "", ""
+        return found.group("who").strip(), (parse_publish_date(found.group("when")) or "")
+
+    def fetch_communique(self, url: str) -> str:
+        """One communiqué's text, fetched rather than clicked.
+
+        Fetched through the authenticated context for the same reason
+        documents are: clicking opens a centred popup window, and a popup is
+        one more thing to go wrong for no gain.
+        """
+        absolute = self._absolute(url) if not url.startswith("http") else url
+        response = self._context.request.get(absolute, timeout=DEFAULT_TIMEOUT_MS)
+        if not response.ok:
+            raise OmnivoxError(f"HTTP {response.status} fetching a communiqué")
+        html = response.text()
+        # The page is a full LÉA frame; keep the readable text and drop markup.
+        page = self._context.new_page()
+        try:
+            page.set_content(html)
+            return page.evaluate(
+                "() => (document.body ? document.body.innerText : '')"
+            ).strip()
+        finally:
+            page.close()
 
     def _collect_mio(self) -> list[dict]:
         """Unread MIO senders and subjects. Never opens a message."""

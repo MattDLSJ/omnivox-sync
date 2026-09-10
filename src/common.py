@@ -144,6 +144,10 @@ class Config:
     # digits numerically, so it sorts above the course documents instead of
     # somewhere in the middle of them.
     books_folder: str = "3_Livres"
+    # Teacher announcements, saved beside the documents. Named with a leading
+    # digit for the same reason as the others: Finder compares runs of digits
+    # numerically, so it sorts with them rather than into the middle of them.
+    communiques_folder: str = "4_Communiques"
     # Which microphone to record from, matched on the name avfoundation reports
     # ("MacBook Pro Microphone"). Empty means "use the built-in". Never an
     # index: see MIC_PREFERENCE in src/recorder.py for what that cost.
@@ -356,6 +360,9 @@ def load_config(config_path: Path, *, repo_root: Path | None = None) -> Config:
         digest_folder=digest_folder,
         recordings_folder=str(raw.get("recordings_folder", "Voice") or "Voice"),
         books_folder=str(raw.get("books_folder", "3_Livres") or "3_Livres"),
+        communiques_folder=str(
+            raw.get("communiques_folder", "4_Communiques") or "4_Communiques"
+        ),
         microphone=str(raw.get("microphone", "") or ""),
         transcribe=bool(raw.get("transcribe", True)),
         transcribe_language=str(raw.get("transcribe_language", "auto") or "auto"),

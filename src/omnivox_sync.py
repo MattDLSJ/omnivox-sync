@@ -917,6 +917,22 @@ def sync(
         except Exception as exc:  # noqa: BLE001
             log.warning("Announcement collection failed: %s", exc)
 
+    # Teacher announcements, saved into their course folders. Here rather than
+    # in chain_downstream because the driver only exists inside this function,
+    # and an earlier version read it off the result object, where it does not
+    # exist: the step would have silently never run.
+    if hasattr(driver, "list_communiques"):
+        try:
+            from src.communiques import sync_communiques
+
+            queued = sync_communiques(cfg, driver, dry_run=dry_run, logger=log)
+            if queued:
+                log.info("Communiqués: %d new", len(queued))
+                result.upload_queue.extend(queued)
+        except Exception as exc:  # noqa: BLE001 - never at the cost of documents
+            log.warning("Communiqué step failed: %s", exc)
+            result.errors.append({"scope": "communiques", "error": str(exc)})
+
     for course in courses:
         try:
             _sync_course(

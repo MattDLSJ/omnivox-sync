@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v26 (2026-09-10)
+
+Teacher communiqués are now saved into each course folder and uploaded to that course's notebook. A communiqué is where instructions like which book to buy, or how to study for the exam, actually live, and nothing in this project had ever read one: they are not a section inside a course, they are a panel on the LEA landing page card, so searching a course for them finds nothing.
+
 ## v25 (2026-09-10)
 
 Fixes documents that could never download. A LEA document link expires as soon as another listing for that course is rendered, and reading the assignment briefs renders one, so every document link went stale before it was used: thirty seconds of waiting, then HTTP 404, on every run. Four files had been stuck this way for eight days on the author's own install and all four came through on the first run after the fix.
