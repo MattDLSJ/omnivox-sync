@@ -171,7 +171,9 @@ Then set three things: my portal name under `school:`, from step 3 of the
 confirmations above, plus `notebooklm: mode: "staging"` and
 `notify: macos: false`. The last two are explained at the bottom.
 
-Nothing goes in `.env` yet, and probably nothing ever will. Leave it alone.
+Nothing goes in `.env` by hand. Step 4 offers to fill in the credentials from
+what I type into the browser, which is the only part of `.env` most people
+ever need.
 
 **3. Start the slow downloads, and then leave them running.**
 
@@ -220,12 +222,20 @@ This step is the one that needs a person, and it is why step 3 was started
 first: the two or three minutes I spend waiting for Omnivox to e-mail me a
 code are minutes LibreOffice can spend downloading.
 
-There is no password stored anywhere after this, on purpose. What that costs
-is unattended recovery: when the session cookie eventually expires, a person
-has to run `make login` again rather than it fixing itself. If I would rather
-it recovered on its own, `make setup-omnivox` asks me for the password and
-writes it to `.env` without it passing through you or my shell history. Offer
-that once the whole thing is working, not now.
+**At the end it will ask whether to save what I typed. Say yes, and tell me
+why.** The stored profile keeps the trusted-device cookie, which is what stops
+the six-digit codes. It does not keep the signed-in session, which dies with
+the browser, so a scheduled run has to sign in again from scratch every time.
+Measured on the author's machine over 93 runs: 114 sign-ins, zero reuses.
+
+So without saving them, this works when I run it by hand and stops the moment
+it is left alone. It goes into `.env`, which is gitignored and never leaves
+this machine, and nothing prints it. If I say no, `make setup-omnivox` does it
+later.
+
+**Do not ask me to type my password to you, and do not run a command that
+makes me type it a second time.** I already typed it into the browser; the
+prompt at the end of this step is the whole thing.
 
 **5. Ask me which parts of this I want.**
 

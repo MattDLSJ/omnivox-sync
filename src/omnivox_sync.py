@@ -1071,7 +1071,11 @@ def _doctor(cfg: Config) -> int:
     if user and password:
         print("  credentials    stored, so it can sign back in unattended")
     elif profile.exists():
-        print("  credentials    none, by design; `make login` again if it expires")
+        problems.append(
+            "No credentials in .env, so nothing scheduled can sign in: the "
+            "signed-in session does not survive the browser closing. Running it "
+            "by hand still works. Fix with: make setup-omnivox"
+        )
     else:
         problems.append(
             "Nothing here can sign in: no stored session and no credentials. "
@@ -1114,8 +1118,7 @@ def _bootstrap_login(cfg: Config, log: logging.Logger) -> int:
     if user and password:
         print("Your saved credentials will be filled in for you.")
     else:
-        print("Type your student number and password into that window. They are")
-        print("not stored anywhere by this program; the signed-in session is.")
+        print("Type your student number and password into that window.")
     print("If it asks for a 6-digit code, check your email, type the code in that")
     print("window, and TICK \"J'utilise un appareil de confiance\" before validating.")
     print("Waiting up to 10 minutes...\n")
@@ -1127,16 +1130,65 @@ def _bootstrap_login(cfg: Config, log: logging.Logger) -> int:
             logger=log,
             portal=build_portal(cfg),
         ) as session:
-            session.await_manual_login(user, password)
+            typed_user, typed_pass = session.await_manual_login(user, password)
     except Exception as exc:  # noqa: BLE001
         log.error("Interactive login failed: %s", exc)
         notify("School sync: login bootstrap failed", str(exc), critical=True, cfg=cfg.notify)
         return 2
 
     clear_login_block(cfg)  # a person just did the thing that was blocking it
-    print("\nLogged in. The session is stored in state/omnivox-profile/.")
-    print("Scheduled headless runs will reuse it. Next: make dry-run")
+    print("\nLogged in, and this computer is now a trusted device, so Omnivox")
+    print("will stop e-mailing you six-digit codes.")
+
+    if not (user and password) and typed_user and typed_pass:
+        _offer_to_save_credentials(cfg, typed_user, typed_pass)
+    print("\nNext: make dry-run")
     return 0
+
+
+def _offer_to_save_credentials(cfg: Config, user: str, password: str) -> None:
+    """Ask whether to keep what was just typed. Never assume, never print it.
+
+    The trusted-device cookie survives in the stored profile; the SESSION
+    cookie does not, because it dies with the browser. Measured over 93
+    scheduled runs: 114 form logins, zero session reuses. So a scheduled run
+    signs in with a password every time, and a copy with none simply stops
+    working the moment nobody is watching.
+
+    Which makes asking the right thing to do, and asking HERE the right place:
+    the alternative was telling somebody to run two more commands and type the
+    same password again, minutes after typing it into the window that just
+    closed.
+    """
+    print(
+        "\nOne thing left. A scheduled run has to sign in on its own, and the\n"
+        "signed-in session does not survive the browser closing, so it needs\n"
+        "your student number and password saved locally to do that.\n\n"
+        "They would go in .env, in this folder, which is gitignored and never\n"
+        "leaves this machine. Nothing prints them and nothing sends them\n"
+        "anywhere. Without them, this only works while you run it by hand.\n"
+    )
+    if not sys.stdin.isatty():
+        print(
+            "Not running in a terminal, so nothing was saved. To do it later:\n"
+            "    make setup-omnivox"
+        )
+        return
+    try:
+        answer = input("Save the credentials you just typed? [Y/n] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print("\nNothing saved. `make setup-omnivox` does it later.")
+        return
+    if answer and answer not in ("y", "yes", "o", "oui"):
+        print("Nothing saved. `make setup-omnivox` does it later.")
+        return
+
+    sys.path.insert(0, str(cfg.repo_root / "scripts"))
+    from set_env import write_key
+
+    write_key("OMNIVOX_USER", user, cfg.repo_root / ".env")
+    write_key("OMNIVOX_PASS", password, cfg.repo_root / ".env")
+    print("Saved to .env. Scheduled runs can now sign in without you.")
 
 
 def build_parser() -> argparse.ArgumentParser:

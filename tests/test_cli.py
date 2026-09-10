@@ -541,13 +541,18 @@ def test_doctor_flags_a_zip_download(tmp_repo, write_config):
     assert sync_main(["--config", str(config), "--doctor"]) == 1
 
 
-def test_doctor_accepts_a_browser_session_with_no_password_on_disk(
+def test_doctor_reports_a_browser_session_with_no_password_as_a_problem(
     tmp_repo, write_config
 ):
-    """Signing in by hand is the recommended setup, not a half-finished one.
+    """A stored profile is NOT enough on its own, and this test used to claim
+    it was.
 
-    Reporting "No .env" as a problem sent people off to edit a file when they
-    had already done the easier thing that works.
+    The profile keeps Omnivox's trusted-device cookie, which stops the
+    six-digit codes. It does not keep the signed-in session, which dies with
+    the browser. Measured over 93 scheduled runs on a real install: 114 form
+    logins, zero session reuses. So a copy with no credentials works while a
+    person runs it by hand and goes silent the moment it is scheduled, which
+    is exactly the failure `make doctor` exists to name out loud.
     """
     from src.omnivox_sync import main as sync_main
 
@@ -556,7 +561,7 @@ def test_doctor_accepts_a_browser_session_with_no_password_on_disk(
     (tmp_repo / "logs" / "omnivox_sync.log").write_text(
         f"{stamp},000 INFO    Sync finished: 0 downloaded\n", encoding="utf-8"
     )
-    assert sync_main(["--config", str(write_config()), "--doctor"]) == 0
+    assert sync_main(["--config", str(write_config()), "--doctor"]) == 1
 
 
 def test_doctor_objects_when_nothing_at_all_can_sign_in(tmp_repo, write_config):

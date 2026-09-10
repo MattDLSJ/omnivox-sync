@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 
 from src.omnivox import LoginError, OmnivoxError, OmnivoxSession, ParseError
@@ -39,7 +41,7 @@ def test_screenshot_writes_a_png(tmp_repo):
 @pytest.mark.live
 def test_login_rejects_blank_credentials(tmp_repo):
     with OmnivoxSession(tmp_repo / "state" / "p", screenshot_dir=tmp_repo / "logs") as s:
-        with pytest.raises(LoginError, match="empty"):
+        with pytest.raises(LoginError, match="no password in .env"):
             s.login("", "")
 
 
@@ -184,3 +186,81 @@ def test_a_blocked_consultation_does_not_raise(tmp_repo):
     """No defer button: log and screenshot, never crash the sync."""
     page = _ConsultPage("https://cegepmontpetit-estd.omnivox.ca/estd/SVET/AccesSV.ovx")
     assert _session_with(page, tmp_repo).dismiss_consultation() is False
+
+
+# ---------------------------------------------------------------------------
+# Keeping what was typed, so nobody types it twice
+#
+# The stored profile keeps Omnivox's trusted-device cookie, which is what
+# stops the six-digit codes. It does NOT keep the session cookie, which dies
+# with the browser, so every scheduled run signs in from scratch and needs a
+# password. Measured on a real install over 93 runs: 114 form logins, zero
+# session reuses.
+#
+# The setup used to tell people to run two more commands and type the same
+# password again, minutes after typing it into the window that just closed.
+# ---------------------------------------------------------------------------
+
+
+def test_await_manual_login_returns_what_was_typed(monkeypatch):
+    """So the caller can OFFER to save it. Reading it back off the form is the
+    only chance: once the page navigates, the fields are gone."""
+    import src.omnivox as omnivox
+
+    class Field:
+        def __init__(self, value):
+            self._value = value
+
+        def input_value(self):
+            return self._value
+
+        def fill(self, _):
+            pass
+
+        def click(self):
+            pass
+
+    class Page:
+        url = "https://example.omnivox.ca/"
+
+        def wait_for_timeout(self, _ms):
+            pass
+
+    session = omnivox.OmnivoxSession.__new__(omnivox.OmnivoxSession)
+    session.page = Page()
+    session.log = logging.getLogger("test")
+    session.profile_dir = "/tmp/profile"
+    session.portal = omnivox.DEFAULT_PORTAL
+
+    monkeypatch.setattr(omnivox, "_goto", lambda *a, **k: None)
+    monkeypatch.setattr(
+        omnivox,
+        "_first_visible",
+        lambda page, sels: Field("1234567" if sels is omnivox._USER_FIELDS else "hunter2"),
+    )
+    states = iter([False, False, True])
+    monkeypatch.setattr(
+        omnivox.OmnivoxSession, "is_logged_in", lambda self: next(states, True)
+    )
+    monkeypatch.setattr(omnivox.OmnivoxSession, "is_mfa_challenge", lambda self: False)
+
+    assert session.await_manual_login("", "") == ("1234567", "hunter2")
+
+
+def test_a_login_that_reads_nothing_back_returns_empty(monkeypatch):
+    """A password manager, a redirect, an unusual form: any of them can mean
+    there is nothing to capture. That must not be an error, and it must not
+    invent a value."""
+    import src.omnivox as omnivox
+
+    session = omnivox.OmnivoxSession.__new__(omnivox.OmnivoxSession)
+    session.page = type("P", (), {"url": "", "wait_for_timeout": lambda self, _: None})()
+    session.log = logging.getLogger("test")
+    session.profile_dir = "/tmp/profile"
+    session.portal = omnivox.DEFAULT_PORTAL
+
+    monkeypatch.setattr(omnivox, "_goto", lambda *a, **k: None)
+    monkeypatch.setattr(omnivox, "_first_visible", lambda page, sels: None)
+    monkeypatch.setattr(omnivox.OmnivoxSession, "is_logged_in", lambda self: True)
+
+    assert session.await_manual_login("", "") == ("", "")

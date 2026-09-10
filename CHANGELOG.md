@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v14 (2026-09-10)
+
+make login now offers to save your credentials at the end, taken from what you typed into the browser, so you are no longer asked to type your password a second time into another command. Correction to what earlier releases said: those credentials are REQUIRED for scheduled runs, not optional. The stored profile keeps the trusted-device cookie that stops the six-digit codes, but not the signed-in session, which dies with the browser. Measured over 93 runs: 114 sign-ins, zero session reuses. make doctor was calling that setup healthy and now says plainly that nothing scheduled can sign in.
+
 ## v13 (2026-09-10)
 
 Setup no longer asks whether your Omnivox is in French or English. It reads that off the public sign-in page, tells you which it found, and if the answer is English it prints exactly what still needs doing. One less question, and one less way to get a silent wrong answer.

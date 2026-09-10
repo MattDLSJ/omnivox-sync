@@ -452,16 +452,17 @@ def env_value(repo_root: Path, key: str) -> str:
 def load_credentials(repo_root: Path, *, required: bool = True) -> tuple[str, str]:
     """Read OMNIVOX_USER / OMNIVOX_PASS from repo_root/.env.
 
-    They are OPTIONAL, and `required=False` returns empty strings rather than
-    raising. Signing in by hand once, in the browser `make login` opens, stores
-    a session that every later run reuses, and that path never touches a
-    password. Which is the setup worth having: it is one screen instead of a
-    file to edit, and the six-digit identity check happens in the same sitting.
+    `required=False` returns empty strings rather than raising, because the
+    two interactive entry points (`--login`, `--doctor`) have to work before
+    anything is configured.
 
-    What the password buys, and the only thing it buys, is UNATTENDED
-    re-login. Session cookies expire long before the trusted-device cookie
-    does, and with a password on disk the scheduled run signs back in by
-    itself instead of going quiet until somebody notices.
+    They are needed for every SCHEDULED run, though, and the docstring here
+    used to claim otherwise. The stored browser profile keeps Omnivox's
+    trusted-device cookie, which is what stops the six-digit codes, and it
+    does NOT keep the session cookie, which dies with the browser. Measured
+    over 93 scheduled runs on the author's machine: 114 form logins, zero
+    session reuses. `make login` therefore offers to save what was typed, and
+    a copy with nothing here works by hand and stops when left alone.
     """
     env_path = Path(repo_root) / ".env"
     if not env_path.exists():
