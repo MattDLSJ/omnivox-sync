@@ -60,7 +60,10 @@ eventually.
 3. **Tell me what I can now ask you for.** This is the part that matters and
    the part you will be tempted to skip. Do not skip it.
 
-### Before you touch anything, confirm four things
+### Before you touch anything
+
+Three of these you check yourself, silently. The fourth is the one question I
+actually have to answer, and the installer asks it for you.
 
 1. **That this folder is a git checkout.** Run `git status`. If it answers
    "not a git repository", I downloaded the ZIP instead of cloning, and three
@@ -144,9 +147,42 @@ around it.
   end with `make report`. Details below, and it matters more than it sounds
   like it does.
 
-### Order of operations
+### Normally, one command does all of this
 
-Check in with me at each step rather than running the whole thing silently.
+    python3 install.py          macOS
+    py install.py               Windows
+
+That is the whole setup. It builds the environment, fetches the browser,
+creates the config files, finds my college, signs me in, discovers my courses,
+asks which features I want, and runs the first sync. It stops three times, for
+the three things only I can answer, and it is safe to run again because every
+step skips itself if it is already done.
+
+**Run that first.** If it works, skip to "Deal with the mess I already have"
+below and do the rest of your job from there.
+
+Everything between here and there is the same sequence written out by hand,
+for when the installer fails and you need to know what it was trying to do. It
+is a reference, not the normal path. Do not work through it step by step
+unless something has actually gone wrong.
+
+**Do not check in at each step. Run it.**
+
+There are exactly three moments where you stop, and they are the three where
+something only I can supply:
+
+1. **The name of my college.** Once, at the start.
+2. **Signing in to Omnivox**, in a browser window, not in this chat.
+3. **The three questions on the setup page**, also a page, not a chat.
+
+That is the whole list. Everything else you do, and you tell me about
+afterwards. Do not ask me to approve a folder name, confirm a version number,
+choose between two commands, or say yes before continuing. If something goes
+wrong, say that immediately, in plain language, and keep going where you can.
+
+---
+
+### The same thing, step by step, for when it breaks
 
 **1. Build the environment.**
 
@@ -165,7 +201,7 @@ Windows has no `make` and puts Python elsewhere, so:
     .venv\Scripts\python -m pip install -r requirements.txt
     .venv\Scripts\python -m playwright install chromium
 
-The last one downloads a browser, around 500 MB. Expected.
+The last one downloads a browser, around 550 MB. Expected.
 
 Everywhere below, on Windows replace `make X` with the command it wraps and
 `.venv/bin/python` with `.venv\Scripts\python`.
@@ -176,9 +212,8 @@ Everywhere below, on Windows replace `make X` with the command it wraps and
     cp .env.example .env
     cp .private-patterns.example .private-patterns
 
-Then set three things: my portal name under `school:`, from step 3 of the
-confirmations above, plus `notebooklm: mode: "staging"` and
-`notify: macos: false`. The last two are explained at the bottom.
+Then set my portal name under `school:`, using `make find-portal`, which takes
+the name of my college and checks the answer against the live site.
 
 Nothing goes in `.env` by hand. Step 4 offers to fill in the credentials from
 what I type into the browser, which is the only part of `.env` most people
@@ -189,25 +224,15 @@ ever need.
 `ffmpeg` and LibreOffice, for the PowerPoint and Word to PDF conversion.
 Together they are most of a gigabyte and several minutes, and **nothing until
 the first sync needs either of them**, so they must not be something I sit and
-watch. Start them, and go straight on to step 4 while they download.
+watch. Start them and go straight on to step 4 while they download.
 
-On Windows LibreOffice does not add itself to the PATH; the project knows the
-two usual install locations, so once it finishes, check that it is found and
-tell me if it is not. Skip whisper.cpp and its 1.5 GB model entirely: that is
-lecture recording, which we are not setting up.
+Clear any administrator prompt first: a dialog stealing focus while I am
+typing a six-digit code is how step 4 gets failed and repeated. And never
+background anything that will ask me for something; if it needs me, it is not
+background work.
 
-Two rules about running this in the background, and they matter:
-
-- **Clear any permission prompt first.** On Windows the installer may ask for
-  administrator approval, and a dialog stealing focus while I am typing a
-  six-digit code into a browser is how step 4 gets failed and repeated. Get it
-  past the prompt and actually downloading, then move on.
-- **Never background anything that will ask me for something.** If it needs me,
-  it is not background work.
-
-If LibreOffice is somehow not ready by the first sync, that is not a failure:
-the sync logs the conversion, keeps the original file, and carries on. It can
-be installed afterwards.
+If LibreOffice is not ready by the first sync, that is not a failure. The
+conversion is logged, the original file is kept, and the run carries on.
 
 **4. Sign in once, in a real browser.**
 
@@ -215,36 +240,25 @@ be installed afterwards.
 
 A browser window opens on Omnivox. **I** type my student number and password
 into it, Omnivox e-mails me a six-digit code, and **I** type that in too. You
-never see any of it and nothing is written to disk except the signed-in
-session, which is what every run from here uses.
+never see any of it.
 
-Two things to tell me **before** I start, because both are invisible
-afterwards:
+**Tell me before I start that I have to tick "J'utilise un appareil de
+confiance"** before validating the code. Miss it and today works perfectly,
+then every scheduled run afterwards gets challenged, and it quietly stops
+working tomorrow.
 
-- **I have to tick "J'utilise un appareil de confiance"** before validating
-  the code. Miss it and today works perfectly, then every scheduled run
-  afterwards gets challenged, and it quietly stops working tomorrow.
-- The window waits ten minutes and then gives up. If I wander off, run it
-  again; nothing is harmed.
-
-This step is the one that needs a person, and it is why step 3 was started
-first: the two or three minutes I spend waiting for Omnivox to e-mail me a
-code are minutes LibreOffice can spend downloading.
-
-**At the end it will ask whether to save what I typed. Say yes, and tell me
-why.** The stored profile keeps the trusted-device cookie, which is what stops
-the six-digit codes. It does not keep the signed-in session, which dies with
-the browser, so a scheduled run has to sign in again from scratch every time.
-Measured on the author's machine over 93 runs: 114 sign-ins, zero reuses.
-
-So without saving them, this works when I run it by hand and stops the moment
-it is left alone. It goes into `.env`, which is gitignored and never leaves
-this machine, and nothing prints it. If I say no, `make setup-omnivox` does it
-later.
+At the end it asks whether to save what I typed. **Say yes, and tell me why:**
+the stored profile keeps the trusted-device cookie, which is what stops the
+codes, but not the signed-in session, which dies with the browser. Measured
+over 93 runs on the author's machine: 114 sign-ins, zero reuses. So without
+saving them this works when I run it by hand and stops the moment it is left
+alone.
 
 **Do not ask me to type my password to you, and do not run a command that
-makes me type it a second time.** I already typed it into the browser; the
-prompt at the end of this step is the whole thing.
+makes me type it a second time.**
+
+`make login` also discovers my courses and writes them into `config.yaml` in
+the same session, so there is usually nothing to do at step 6.
 
 **5. Ask me which parts of this I want.**
 
@@ -260,9 +274,8 @@ I can open any time. Mention that it exists, then move on.
 
 **6. Check the courses it found.**
 
-Step 4 already found them and wrote them into `config.yaml`, because the
-browser was open and signed in and there was no reason to make me run a second
-command for it. If it did not, or to redo it:
+Step 4 already found them and wrote them into `config.yaml`. If it did not, or
+to redo it:
 
     make discover
 
@@ -397,20 +410,27 @@ If the pull refuses because I have my own commits, tell me to put them on a
 branch or stash them rather than forcing anything. And if it refuses because
 this is not a git repository, go back to confirmation 1.
 
-### The two settings from step 3
+### The three questions on the setup page, explained
 
-**`mode: "staging"`** means the NotebookLM tool is never invoked. New files are
-copied into `<course>/_to_upload/` and I drag them in myself. I keep all the
-downloading, converting and filing and lose only the last drag. Once everything
-else works we can try `"auto"`, which needs a separate tool installed and a
-notebook created by hand per course.
+You do not ask me these. The page does, and it explains each one. This is here
+so that you can answer if I ask you about them.
 
-**`macos: false`** turns off desktop notifications. For phone notifications
-instead, tell me about `NTFY_TOPIC` in `.env`: I pick a random string nobody
-would guess, put it there, and subscribe to the same name in the ntfy app.
-Explain that an ntfy topic has no password, so anyone who knows the name can
-read my notifications, which is why it lives in `.env` and never in
-`config.yaml`.
+**NotebookLM.** `"off"` does nothing at all, for somebody who does not use it.
+`"staging"` copies new files into `<course>/_to_upload/` for me to drag in
+myself, which keeps all the downloading, converting and filing and loses only
+the drag. `"auto"` needs a separate command-line tool installed and a notebook
+created by hand per course, named exactly as in `config.yaml`; if that
+notebook is missing it silently stages instead, which is why nobody should
+start there.
+
+**Lecture recording.** macOS only, needs a 1.5 GB speech model, and stays
+completely inert until a class timetable is in `config.yaml`. Off unless I ask.
+
+**Notifications.** Desktop ones are macOS only. For my phone instead, tell me
+about `NTFY_TOPIC` in `.env`: I pick a random string nobody would guess, put
+it there, and subscribe to the same name in the ntfy app. An ntfy topic has no
+password, so anyone who knows the name can read my notifications and send me
+fake ones, which is why it lives in `.env` and never in `config.yaml`.
 
 ### Send back whatever you had to fix
 

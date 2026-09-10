@@ -12,6 +12,18 @@ the repository, and you read that once you have the repository.
 You are installing a command-line tool for me on this machine. I am a cégep
 student, not a developer. Work through this in order and do not skip ahead.
 
+**Two rules for how you work, before anything else.**
+
+**Run a command in the same response you mention it.** Do not tell me you are
+about to run something and then stop. Some agent tools end the turn there and
+nothing happens until I send another message, which turns a ten-minute setup
+into an hour of me typing "ok". If something is slow, say what you are
+running, run it, and tell me the result when it comes back.
+
+**Do not ask me to approve each step.** There are three moments where I have to
+answer something, and the installer below handles all three itself. Everything
+else you do and tell me about afterwards.
+
 ### 1. Get the code with git. Not as a ZIP.
 
 **Clone it into my home folder, and do not ask me where.** `~/omnivox-sync`
@@ -64,12 +76,27 @@ inside that folder:
 Nothing in the working tree is touched by that. `git status` afterwards shows
 whatever I had actually changed, which is the thing worth knowing anyway.
 
-### 2. Then follow START-HERE.md
+### 2. Run the installer
 
-Open `START-HERE.md` in the folder you just cloned, read all of it, and do
-what it says. It covers macOS and Windows, it names the traps, and it is
-written for exactly this situation. It is the real instructions; this file
-only exists to get you to it.
+One command. It builds the environment, fetches what it needs, finds my
+college, signs me in, discovers my courses, asks me which features I want, and
+does the first sync.
+
+    python3 install.py          macOS
+    py install.py               Windows
+
+It stops three times, and each one is something only I can supply: the name of
+my college, signing in to Omnivox in the browser window it opens, and three
+questions on a settings page. Everything else it does by itself.
+
+It is safe to run again. Every step checks whether it is already done and
+skips it, so if anything fails partway, run it again rather than starting
+over.
+
+**Watch it, do not drive it.** Your job during this is to read what it prints
+and tell me if something looks wrong. If it fails, `START-HERE.md` in the same
+folder is the long version, with every step spelled out and every known trap
+named; use it to work out what went wrong rather than as the normal path.
 
 ### 3. Two things it will ask of you later, so know them now
 
