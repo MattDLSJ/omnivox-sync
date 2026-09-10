@@ -1273,13 +1273,53 @@ class OmnivoxSession:
             self.log.warning("MIO list frame not found; skipping MIO for this run")
         return frame
 
-    def list_mio(self) -> list[dict]:
+    #: In the detail pane the sender is written "Name (340-101-MQ gr.1060
+    #: (A2026))", which identifies the course outright instead of by matching
+    #: a teacher's name.
+    _MIO_SENDER_COURSE = re.compile(r"\((\d{3}-[A-Z0-9]{3}-[A-Z]{2})")
+
+    def read_mio_body(self, index: int) -> tuple[str, str]:
+        """(body, course code) for one message, by opening it.
+
+        **This marks the message read**, which is why it is off unless asked
+        for. There is no way round it: the id in the detail URL is the row's
+        checkbox id, which is a GUID with the row's position glued on the end,
+        so it cannot be built without the row, and reaching the row means
+        clicking it.
+
+        The list frame must already be open; `list_mio` leaves it that way.
+        """
+        frame = next(
+            (f for f in self.page.frames if "/MioListe.aspx" in (f.url or "")), None
+        )
+        if frame is None:
+            return "", ""
+        rows = frame.locator("tr.norm")
+        if index >= rows.count():
+            return "", ""
+        rows.nth(index).click()
+        self.page.wait_for_timeout(2500)
+        detail = next(
+            (f for f in self.page.frames if "MioDetail" in (f.url or "")), None
+        )
+        if detail is None:
+            return "", ""
+        text = detail.evaluate(
+            "() => (document.body ? document.body.innerText : '')"
+        ).strip()
+        found = self._MIO_SENDER_COURSE.search(text)
+        return text, (found.group(1) if found else "")
+
+    def list_mio(self, *, with_bodies: bool = False) -> list[dict]:
         """Every message in the inbox: who, what, when, and the preview.
 
-        Nothing here opens a message, so nothing is marked read. The preview
-        LEA puts in the list is long enough to carry the instruction most of
-        the time: "Pour le prochain cours, vous devez lire la section 2.5.3 du
-        manuel et" is a preview, not a body.
+        With `with_bodies=False`, the default, nothing is opened and nothing is
+        marked read. The preview LÉA puts in the list is long enough to carry
+        the instruction most of the time: "Pour le prochain cours, vous devez
+        lire la section 2.5.3 du manuel et" is a preview, not a body.
+
+        With `with_bodies=True` each message is opened for its full text, and
+        every unread one it touches becomes read. That is the whole trade.
         """
         frame = self._open_mio_list()
         if frame is None:
@@ -1326,7 +1366,20 @@ class OmnivoxSession:
                 "preview": preview,
                 "date": date,
                 "unread": bool(row.get("unread")),
+                "index": len(items),
+                "body": "",
+                "course_code": "",
             })
+
+        if with_bodies:
+            for item in items:
+                try:
+                    body, code = self.read_mio_body(item["index"])
+                except Exception as exc:  # noqa: BLE001 - one bad row, not the run
+                    self.log.warning("Could not open a MIO: %s", exc)
+                    continue
+                item["body"] = body
+                item["course_code"] = code
         return items
 
     def _collect_mio(self) -> list[dict]:

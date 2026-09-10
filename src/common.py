@@ -150,6 +150,10 @@ class Config:
     communiques_folder: str = "4_Communiques"
     # Messages your own teachers sent you in Omnivox's internal mail.
     mio_folder: str = "5_MIO"
+    # Open each teacher message for its full text. OFF by default, because
+    # opening one marks it read, and a background job silently emptying
+    # somebody's unread list is not a thing to do without being asked.
+    mio_full_bodies: bool = False
     # Which microphone to record from, matched on the name avfoundation reports
     # ("MacBook Pro Microphone"). Empty means "use the built-in". Never an
     # index: see MIC_PREFERENCE in src/recorder.py for what that cost.
@@ -366,6 +370,7 @@ def load_config(config_path: Path, *, repo_root: Path | None = None) -> Config:
             raw.get("communiques_folder", "4_Communiques") or "4_Communiques"
         ),
         mio_folder=str(raw.get("mio_folder", "5_MIO") or "5_MIO"),
+        mio_full_bodies=bool((raw.get("mio") or {}).get("full_bodies", False)),
         microphone=str(raw.get("microphone", "") or ""),
         transcribe=bool(raw.get("transcribe", True)),
         transcribe_language=str(raw.get("transcribe_language", "auto") or "auto"),

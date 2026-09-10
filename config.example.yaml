@@ -119,6 +119,16 @@ communiques_folder: "4_Communiques"
 # the inbox preview rather than the full text.
 mio_folder: "5_MIO"
 
+# Save the WHOLE message rather than the preview Omnivox shows in the inbox
+# list. Off by default, and the reason is the only thing worth knowing here:
+# there is no way to read a message without opening it, and opening it marks
+# it read. Turn this on and every unread message from a teacher becomes read
+# the next time this runs. Leave it off and you get the preview, which usually
+# carries the whole instruction and sometimes stops mid-sentence; the saved
+# file says which one it is.
+mio:
+  full_bodies: false
+
 # Substring of the input device name, as shown in System Settings > Sound.
 # Empty = the system default input.
 microphone: ""

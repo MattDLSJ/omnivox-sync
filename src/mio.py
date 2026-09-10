@@ -68,6 +68,79 @@ def split_subject(preview: str, limit: int = 90) -> tuple[str, str]:
     return text[:limit].strip(" ,:;-–"), text
 
 
+#: Buttons and labels the detail pane renders around the message. None of it
+#: is content, and one of them is the recipient list, which is the reader's own
+#: name repeated into every file.
+_DETAIL_CHROME = {
+    "de", "à", "a", "date", "répondre", "repondre", "transférer", "transferer",
+    "supprimer", "imprimer", "à (masqués)", "a (masques)", "objet", "sujet",
+    "fermer", "retour",
+}
+
+
+def parse_detail(text: str) -> dict:
+    """Pull sender, date, subject and body out of an opened message.
+
+    The pane is laid out as label-then-value on separate lines:
+
+        De / Jordan Tremblay (340-101-MQ gr.1060 (A2026))
+        Répondre / Transférer / Supprimer / Imprimer
+        À (masqués) / <your own name>
+        Date / Jeu 10-sep-2026 à 11:09 - il y a 2 heures
+        <subject>
+        <body...>
+
+    So the subject is the first line after the date's value, and everything
+    after that is the message. The recipient block is dropped rather than
+    saved: it is the reader's own name, in every single file.
+    """
+    lines = [l.rstrip() for l in (text or "").splitlines()]
+    out = {"sender": "", "date": "", "subject": "", "body": ""}
+    index = 0
+    while index < len(lines):
+        label = lines[index].strip().lower().rstrip(":")
+        value = lines[index + 1].strip() if index + 1 < len(lines) else ""
+        if label == "de" and value:
+            out["sender"] = value
+            index += 2
+            continue
+        if label == "date" and value:
+            out["date"] = value
+            index += 2
+            # What follows the date is the subject, then the message.
+            rest = [l for l in lines[index:]]
+            while rest and not rest[0].strip():
+                rest.pop(0)
+            if rest:
+                out["subject"] = rest[0].strip()
+                rest = rest[1:]
+            body = [l for l in rest if l.strip().lower() not in _DETAIL_CHROME]
+            while body and not body[0].strip():
+                body.pop(0)
+            while body and not body[-1].strip():
+                body.pop()
+            out["body"] = "\n".join(body).strip()
+            return out
+        index += 1
+    return out
+
+
+def detail_date(text: str) -> str:
+    """"Jeu 10-sep-2026 à 11:09 - il y a 2 heures" -> "2026-09-10".
+
+    The detail pane hyphenates where the rest of Omnivox uses spaces, and the
+    shared date parser only takes the spaced form, so this un-hyphenates
+    before handing it over rather than teaching that parser a shape only this
+    one page uses.
+    """
+    from src.omnivox import parse_publish_date
+
+    found = re.search(r"(\d{1,2})[-\s]([A-Za-zéûî]+)[-\s](\d{4})", text or "")
+    if not found:
+        return ""
+    return parse_publish_date(" ".join(found.groups())) or ""
+
+
 def safe_name(text: str, limit: int = 80) -> str:
     cleaned = re.sub(r'[:*?"<>|/\\\x00-\x1f]', " ", text or "")
     cleaned = re.sub(r"\s+", " ", cleaned).strip().rstrip(".")
@@ -91,20 +164,36 @@ def match_course(sender: str, courses) -> object | None:
     return None
 
 
-def render(sender: str, subject: str, date: str, body: str, course_code: str) -> str:
+def clean_sender(sender: str) -> str:
+    """"Jordan Tremblay (340-101-MQ gr.1060 (A2026))" -> "Jordan Tremblay".
+
+    The detail pane appends the course to the name, and the byline already
+    carries the course code, so leaving it gives every file a line reading
+    "340-101-MQ · Jordan Tremblay (340-101-MQ gr.1060 (A2026))".
+    """
+    return re.sub(r"\s*\([^)]*\d{3}-[A-Z0-9]{3}-[A-Z]{2}.*$", "", sender or "").strip()
+
+
+def render(sender: str, subject: str, date: str, body: str, course_code: str,
+           *, truncated: bool = True) -> str:
     head = [f"# {subject or 'Message'}", ""]
-    meta = [p for p in (course_code, sender, date) if p]
+    meta = [p for p in (course_code, clean_sender(sender), date) if p]
     if meta:
         head += ["*" + " · ".join(meta) + "*", ""]
-    head += [
-        body.strip(),
-        "",
-        "---",
-        "",
-        "*Saved from the Omnivox inbox listing, so this may be cut off. The "
-        "full message is in Omnivox; it is not opened here because opening it "
-        "would mark it read.*",
-    ]
+    head.append(body.strip())
+    if truncated:
+        # Only when this really is the listing preview. Saying "may be cut off"
+        # on a complete message would teach people to distrust the ones that
+        # are fine.
+        head += [
+            "",
+            "---",
+            "",
+            "*Saved from the Omnivox inbox listing, so this may be cut off. The "
+            "full message is in Omnivox; it is not opened here because opening "
+            "it would mark it read. Set `mio: full_bodies: true` to save the "
+            "whole thing instead.*",
+        ]
     return "\n".join(head).strip() + "\n"
 
 
@@ -116,18 +205,32 @@ def sync_mio(cfg, driver, *, dry_run: bool = False, logger=None) -> list[dict]:
     queued: list[dict] = []
     fresh: list[dict] = []
 
+    full = bool(getattr(cfg, "mio_full_bodies", False))
     try:
-        messages = driver.list_mio()
+        messages = driver.list_mio(with_bodies=full)
     except Exception as exc:  # noqa: BLE001
         log.warning("Could not read MIO: %s", exc)
         return []
 
+    by_code = {c.code: c for c in cfg.courses}
     for message in messages or []:
-        course = match_course(message.get("sender", ""), cfg.courses)
+        detail = parse_detail(message.get("body", "")) if message.get("body") else {}
+        # The opened message names its own course, which beats matching a
+        # teacher's name against a sender string.
+        course = by_code.get(message.get("course_code") or "")
+        if course is None:
+            course = match_course(
+                detail.get("sender") or message.get("sender", ""), cfg.courses
+            )
         if course is None:
             continue  # not a teacher of yours; the inbox is full of those
-        subject, body = split_subject(message.get("preview", ""))
-        date = message.get("date") or ""
+        if detail.get("body"):
+            subject = detail.get("subject") or ""
+            body = detail["body"]
+            date = detail_date(detail.get("date", "")) or message.get("date") or ""
+        else:
+            subject, body = split_subject(message.get("preview", ""))
+            date = message.get("date") or "" 
         key = message.get("id") or f"{message.get('sender')}\x1f{subject}\x1f{date}"
         if key in known:
             continue
@@ -140,7 +243,11 @@ def sync_mio(cfg, driver, *, dry_run: bool = False, logger=None) -> list[dict]:
         else:
             folder.mkdir(parents=True, exist_ok=True)
             path.write_text(
-                render(message.get("sender", ""), subject, date, body, course.code),
+                render(
+                    detail.get("sender") or message.get("sender", ""),
+                    subject, date, body, course.code,
+                    truncated=not detail.get("body"),
+                ),
                 encoding="utf-8",
             )
             log.info("MIO saved: %s/%s", course.folder, name)

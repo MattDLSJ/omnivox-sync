@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v28 (2026-09-10)
+
+MIO can now be saved in full rather than as the inbox preview: set mio: full_bodies: true. It is off by default because there is no way to read a message without opening it, and opening it marks it read, so turning it on means every unread message from a teacher becomes read on the next run. The saved file always says which of the two it is.
+
 ## v27 (2026-09-10)
 
 MIO from your own teachers is now saved into that teacher's course folder and uploaded to its notebook, so what they told you in a message is searchable beside their slides. The rest of the inbox is left alone. Nothing opens a message, so nothing is marked read, which means what is saved is the inbox preview and each file says so. This also fixes MIO in the digest, which had been silently missing it because the link it looked for no longer carries the attribute it matched on.

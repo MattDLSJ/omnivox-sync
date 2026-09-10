@@ -26,9 +26,10 @@ class FakeDriver:
         }]
         self._raises = raises
 
-    def list_mio(self):
+    def list_mio(self, *, with_bodies=False):
         if self._raises:
             raise self._raises
+        self.asked_for_bodies = with_bodies
         return list(self._messages)
 
 
@@ -148,3 +149,103 @@ def test_the_saved_file_says_it_may_be_truncated():
 
 def test_filenames_survive_a_subject_with_a_colon_in_it():
     assert ":" not in safe_name("Rappel : Examen")
+
+
+# --------------------------------------------------- the full-body switch
+
+
+DETAIL = """De
+Jordan Tremblay (601-101-MQ gr.1060 (A2026))
+Répondre
+Transférer
+Supprimer
+Imprimer
+À (masqués)
+ A Student Name	
+Date
+Jeu 10-sep-2026 à 11:09 - il y a 2 heures
+Ouvrage
+Bonjour,
+
+Il faudra avoir le livre pour jeudi.
+
+Merci"""
+
+
+def test_the_detail_pane_is_parsed_into_its_parts():
+    from src.mio import parse_detail
+
+    got = parse_detail(DETAIL)
+    assert got["subject"] == "Ouvrage"
+    assert got["sender"].startswith("Jordan Tremblay")
+    assert "Il faudra avoir le livre" in got["body"]
+
+
+def test_the_recipient_block_is_not_saved():
+    """It is the reader's own name, and it would be in every single file."""
+    from src.mio import parse_detail
+
+    assert "A Student Name" not in parse_detail(DETAIL)["body"]
+    assert "Répondre" not in parse_detail(DETAIL)["body"]
+
+
+def test_the_hyphenated_detail_date_is_understood():
+    """The detail pane writes 10-sep-2026 where the rest of Omnivox writes
+    10 sep 2026, and the shared parser only takes the spaced form."""
+    from src.mio import detail_date
+
+    assert detail_date("Jeu 10-sep-2026 à 11:09 - il y a 2 heures") == "2026-09-10"
+    assert detail_date("nothing dateish") == ""
+
+
+def test_bodies_are_not_requested_unless_configured(loaded_config):
+    driver = FakeDriver()
+    sync_mio(loaded_config, driver, logger=None)
+    assert driver.asked_for_bodies is False, "opening a message marks it read"
+
+
+def test_bodies_are_requested_when_configured(loaded_config):
+    object.__setattr__(loaded_config, "mio_full_bodies", True)
+    driver = FakeDriver()
+    sync_mio(loaded_config, driver, logger=None)
+    assert driver.asked_for_bodies is True
+
+
+def test_a_full_body_is_saved_without_the_truncation_note(loaded_config):
+    """Saying "this may be cut off" on a complete message would teach people
+    to distrust the ones that are fine."""
+    object.__setattr__(loaded_config, "mio_full_bodies", True)
+    course = loaded_config.courses[0]
+    driver = FakeDriver([{
+        "id": "g9", "sender": course.teacher, "date": "", "preview": "Ouvrage Bonjour",
+        "unread": False, "body": DETAIL, "course_code": course.code,
+    }])
+    sync_mio(loaded_config, driver, logger=None)
+
+    folder = loaded_config.folder_for(course) / loaded_config.mio_folder
+    saved = list(folder.glob("*.md"))[0]
+    text = saved.read_text(encoding="utf-8")
+    assert "Il faudra avoir le livre" in text
+    assert "may be cut off" not in text
+    assert saved.name.startswith("2026-09-10 - "), "the date comes from the message"
+
+
+def test_the_course_code_in_the_message_beats_matching_the_name(loaded_config):
+    """An opened message names its own course outright."""
+    object.__setattr__(loaded_config, "mio_full_bodies", True)
+    course = loaded_config.courses[0]
+    driver = FakeDriver([{
+        "id": "g10", "sender": "Somebody Not In The Config", "date": "",
+        "preview": "x", "unread": False, "body": DETAIL, "course_code": course.code,
+    }])
+    assert len(sync_mio(loaded_config, driver, logger=None)) == 1
+
+
+def test_the_course_is_not_repeated_in_the_byline():
+    """The detail pane appends the course to the sender, and the byline
+    already carries the code, so every file read
+    "300-204-EM · Jordan Tremblay (300-204-EM gr.1040 (A2026))"."""
+    from src.mio import clean_sender
+
+    assert clean_sender("Jordan Tremblay (340-101-MQ gr.1060 (A2026))") == "Jordan Tremblay"
+    assert clean_sender("Jordan Tremblay") == "Jordan Tremblay"
