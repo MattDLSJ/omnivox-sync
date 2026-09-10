@@ -14,18 +14,23 @@ student, not a developer. Work through this in order and do not skip ahead.
 
 ### 1. Get the code with git. Not as a ZIP.
 
-**Ask me where to put it first, and suggest a plain, permanent folder** in my
-home directory: `C:\Users\<me>\omnivox-sync` on Windows,
-`~/omnivox-sync` on a Mac. Then clone it there.
+**Clone it into my home folder, and do not ask me where.** `~/omnivox-sync`
+on a Mac, `%USERPROFILE%\omnivox-sync` on Windows. Tell me the path you used
+and carry on; I do not have an opinion and I should not have to form one.
 
-Not wherever your own working directory happens to be. An agent doing this
-cloned it into its own scratch folder, buried inside a hidden directory
-belonging to the AI tool itself. That folder ends up holding my credentials,
-my signed-in browser profile and a semester of my documents, and it is a
-folder that tool is free to clear. It is also one I would never find.
-
+    cd ~                 # or: cd $env:USERPROFILE   on Windows
     git clone https://github.com/MattDLSJ/omnivox-sync.git
     cd omnivox-sync
+
+**Not wherever your own working directory happens to be**, which is the part
+that actually needs saying. An agent doing this cloned it into its own scratch
+folder, buried inside a hidden directory belonging to the AI tool itself. That
+folder ends up holding my credentials, my signed-in browser profile and a
+semester of my documents, and it is a folder that tool is free to clear
+without warning. It is also one I would never find.
+
+If a folder of that name is already there and is not empty, that is the one
+case where you stop and ask me.
 
 The repository is public, so that needs no account, no sign-in and no
 credentials. If it fails, it is a network problem or a typo, not a permissions

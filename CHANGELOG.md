@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v18 (2026-09-10)
+
+Installing no longer asks where to put the folder. It uses your home directory, tells you the path, and carries on, which is one less question in a setup that should have almost none. It still refuses to clone into whatever working directory the agent happens to start in.
+
 ## v17 (2026-09-10)
 
 Setting up no longer runs the full test suite after every step. It runs once as a baseline, and again only if a source file actually changes, which takes several minutes of blocking out of a normal install.
