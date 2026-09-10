@@ -1,6 +1,6 @@
 PY := $(CURDIR)/.venv/bin/python
 
-.PHONY: books button capture-ip capture-location check-private discover doctor dry-run fetch-vad field-notes find-portal ics install-hooks install-launchd install-live install-manual install-recorder install-retry invite login mic-test mirror public-snapshot publish record-now recorder-status report send-report setup-cheneliere setup-gemini setup-ics setup-mic setup-omnivox shortcuts sound-check sync test test-unit uninstall-launchd uninstall-live uninstall-manual uninstall-recorder uninstall-retry update upload venv
+.PHONY: books button capture-ip capture-location check-private discover doctor dry-run fetch-vad field-notes find-portal ics install-hooks install-launchd install-live install-manual install-recorder install-retry invite login mic-test mirror public-snapshot publish record-now recorder-status report send-report settings setup setup-cheneliere setup-gemini setup-ics setup-mic setup-omnivox shortcuts sound-check sync test test-unit uninstall-launchd uninstall-live uninstall-manual uninstall-recorder uninstall-retry update upload venv
 
 venv:
 	python3 -m venv .venv
@@ -112,6 +112,22 @@ send-report:
 # ready to hand to an AI along with "work out what of this belongs upstream".
 field-notes:
 	@$(PY) scripts/field_report.py --collect
+
+# Which parts of this do you actually want? Opens a page in your browser with
+# three questions, the ones whose answer changes what happens on day one and
+# that nothing else can guess. A page rather than a conversation because an
+# agent working through a long setup brief will compress eight questions into
+# two and guess the rest, and because "what does staging mean" is a thing you
+# read, not a thing you get told once in a chat.
+setup:
+	@$(PY) -m src.setup_page
+
+# The rest of them, any time: how the digest ranks, folder colours, when the
+# scheduled sync runs, whether it updates itself. Separate from `make setup`
+# on purpose: a wall of choices in front of somebody who just wants their
+# notes downloaded is how you lose them before the first sync.
+settings:
+	@$(PY) -m src.setup_page --all
 
 dry-run:
 	$(PY) -m src.omnivox_sync --dry-run

@@ -419,19 +419,42 @@ def main(argv: list[str] | None = None) -> int:
         try:
             needles = collect_needles(REPO_ROOT)
             exceptions = collect_exceptions(REPO_ROOT)
-        except CannotCheck as exc:
+        except CannotCheck as exc:  # noqa: F841 - re-raised below with context
             print(f"check-private: CANNOT CHECK. {exc}", file=sys.stderr)
             return EXIT_CANNOT_CHECK
-        if not needles:
-            # Nothing private is configured here, so there is nothing to look
-            # for. That is a fresh clone, not a failure: refusing was how the
-            # commit-msg hook came to reject every commit somebody tried to
-            # make on their own copy.
+        from_patterns = any(n.label.startswith(".private-patterns") for n in needles)
+        if not needles or not from_patterns:
+            # .private-patterns is the ONLY source that holds a person's legal
+            # name, their short username and their student number. .env holds
+            # credentials, and config.yaml contributes teachers and an SSID.
+            # On a fresh install the example file is comments only and .env is
+            # deliberately empty, so this branch is the normal state, not a
+            # rare one.
             print(
-                "check-private: nothing private configured here, so there is "
-                "nothing to guard. Normal on a fresh clone."
+                "check-private: WARNING, the things no config file can know "
+                "(your name, your username, your student number, your machine) "
+                "are NOT being checked, because .private-patterns is missing or "
+                "empty. Fill it in from the .example beside it.",
+                file=sys.stderr,
             )
-            return EXIT_CLEAN
+            if args.certify:
+                # A commit message stays a warning, because refusing every
+                # commit on a fresh clone just teaches people --no-verify. But
+                # this text is about to be published, and a guard with nothing
+                # to look for must never be the thing that says a public post
+                # is clean.
+                raise CannotCheck(
+                    "refusing to certify this text while .private-patterns is "
+                    "empty. It is the only place your own name and student "
+                    "number are known, and without it nothing is checking for "
+                    "them. Fill it in, then run this again."
+                )
+            if not needles:
+                print(
+                    "check-private: nothing private configured here, so there "
+                    "is nothing to guard. Normal on a fresh clone."
+                )
+                return EXIT_CLEAN
         message = Path(args.message_file).read_text(encoding="utf-8", errors="replace")
         # Strip the comment lines git adds; they quote the diff and the branch.
         body = "\n".join(

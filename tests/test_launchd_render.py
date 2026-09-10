@@ -1,18 +1,34 @@
+import sys
 import plistlib
 import subprocess
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 TEMPLATE = REPO / "launchd" / "com.school.sync.plist.template"
+import pytest
+
+# Skipped off macOS rather than failed. A Windows install running the
+# offline suite as START-HERE instructs would otherwise open on dozens
+# of red lines about tooling that platform does not have, at step one,
+# on the one platform the author has never tested. skipif rather than a
+# marker so that `pytest -m "not live"` stays correct everywhere and
+# nobody has to remember a second flag.
+pytestmark = pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="launchd, which does not exist off macOS; Windows uses Task Scheduler",
+)
 
 
 def _render(tmp_path):
-    text = TEMPLATE.read_text(encoding="utf-8")
-    rendered = text.replace("__REPO__", str(tmp_path)).replace(
-        "__PYTHON__", str(tmp_path / ".venv" / "bin" / "python")
-    )
+    """Through the real renderer. The schedule is no longer a literal in the
+    template: it comes from config.yaml, because launchd's copy of the times
+    and next_window()'s copy have to agree, or a failed run either retries
+    forever or never retries at all."""
+    sys.path.insert(0, str(REPO))
+    from scripts.render_plist import render
+
     out = tmp_path / "com.school.sync.plist"
-    out.write_text(rendered, encoding="utf-8")
+    out.write_text(render("com.school.sync"), encoding="utf-8")
     return out
 
 
@@ -26,7 +42,8 @@ def test_rendered_plist_is_valid(tmp_path):
 
 def test_no_placeholders_survive_rendering(tmp_path):
     text = _render(tmp_path).read_text(encoding="utf-8")
-    assert "__REPO__" not in text and "__PYTHON__" not in text
+    for mark in ("__REPO__", "__PYTHON__", "__SCHEDULE__"):
+        assert mark not in text, f"{mark} survived into a plist launchd will load"
 
 
 def test_every_path_is_absolute(tmp_path):

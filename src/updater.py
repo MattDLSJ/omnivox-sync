@@ -23,12 +23,18 @@ you get half of one version and half of another.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 FETCH_TIMEOUT_S = 45
 INSTALL_TIMEOUT_S = 300
+
+#: Where this project comes from. The one place in the code that knows, and it
+#: exists for exactly one situation: a copy that was downloaded as a ZIP has no
+#: remote to ask, because it has no git at all.
+UPSTREAM = "https://github.com/MattDLSJ/school-automation-share.git"
 
 
 @dataclass(frozen=True)
@@ -59,9 +65,12 @@ def check_and_apply(repo_root: Path, *, runner=_run) -> UpdateResult:
     repo_root = Path(repo_root)
 
     if not (repo_root / ".git").exists():
-        # A ZIP download. Nothing to do here, and `make doctor` is where that
-        # gets explained, because it is a setup problem and not a sync one.
-        return UpdateResult(message="not a git checkout, so it cannot self-update")
+        repaired = repair_checkout(repo_root, runner=runner)
+        if not repaired.changed:
+            return repaired
+        # Fall through: it is a real checkout now, so it can update like any
+        # other. Usually there is nothing to fetch, because the ZIP came from
+        # the same branch, and that is the quiet success this is aiming for.
 
     try:
         remote = runner(["git", "remote", "get-url", "origin"], repo_root)
@@ -133,6 +142,162 @@ def check_and_apply(repo_root: Path, *, runner=_run) -> UpdateResult:
 
     except (subprocess.TimeoutExpired, OSError) as exc:
         return UpdateResult(message=f"update check skipped ({type(exc).__name__})")
+
+
+def _remote_branch(repo_root: Path, runner) -> str:
+    """The branch the upstream actually publishes, not the one we assume.
+
+    `origin/main` is right today and was not always: resetting onto a ref that
+    does not exist fails after .git has already been created, which used to
+    leave the folder in a state that could never be repaired again.
+    """
+    for candidate in ("origin/main", "origin/master"):
+        got = runner(["git", "rev-parse", "--verify", "--quiet", candidate], repo_root)
+        if got.returncode == 0 and got.stdout.strip():
+            return candidate
+    head = runner(["git", "symbolic-ref", "refs/remotes/origin/HEAD"], repo_root)
+    if head.returncode == 0 and head.stdout.strip():
+        return head.stdout.strip().replace("refs/remotes/", "", 1)
+    return ""
+
+
+def _commit_matching_tree(repo_root: Path, branch: str, runner, limit: int = 100) -> str:
+    """The newest commit whose tree is what is actually on disk.
+
+    A ZIP is a snapshot of one commit. Pointing HEAD at the branch tip instead
+    tells git that every file changed since that commit is a local
+    modification of the user's, which is the opposite of the truth: they are
+    the release's changes, not theirs. The updater then refuses to
+    fast-forward "over their work" forever, and the copy is frozen exactly as
+    it was before the repair.
+
+    So find the commit the ZIP was cut from, adopt that, and let the ordinary
+    fast-forward carry them to the tip afterwards.
+    """
+    listed = runner(
+        ["git", "rev-list", f"--max-count={limit}", branch], repo_root, 60
+    )
+    if listed.returncode != 0:
+        return ""
+    for sha in listed.stdout.split():
+        if runner(["git", "diff", "--quiet", sha], repo_root, 60).returncode == 0:
+            return sha
+    return ""
+
+
+def repair_checkout(repo_root: Path, *, runner=_run, upstream: str = UPSTREAM) -> UpdateResult:
+    """Turn a ZIP download back into a real checkout, without touching a file.
+
+    Downloading the ZIP is what people actually do, no matter what the
+    instructions say, and the result is indistinguishable from a clone until
+    the day it matters: no history, so no fix can ever arrive and no fix can
+    ever leave. Telling them to start over is the wrong answer, because by
+    then their credentials and their timetable are in the folder.
+
+    So this adopts the history in place. `git reset --mixed` moves HEAD and the
+    index and leaves every file exactly where it is, which means .env,
+    config.yaml and anything their agent patched all survive. Verified against
+    a real GitHub zipball: afterwards the only thing `git status` reports is
+    the patch, which is precisely what should be reported.
+
+    It is all-or-nothing. Every earlier version could fail after `git init` and
+    leave a .git with an unborn HEAD behind, which is worse than it found
+    things AND a one-way door, because the repair only runs when there is no
+    .git at all.
+    """
+    try:
+        inside = runner(["git", "rev-parse", "--show-toplevel"], repo_root)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return UpdateResult(
+            message=f"cannot repair this copy without git installed ({exc})"
+        )
+
+    if inside.returncode == 0 and inside.stdout.strip():
+        # No .git here, yet git answers: this folder sits INSIDE somebody
+        # else's repository. Running `git init` would nest a second one in it,
+        # which is not ours to do.
+        return UpdateResult(
+            blocked=True,
+            message=(
+                "This folder has no git of its own but sits inside the "
+                f"repository at {inside.stdout.strip()}. Move it somewhere of "
+                "its own and run this again, or clone it fresh. Nothing has "
+                "been touched."
+            ),
+        )
+
+    created_git = False
+
+    def undo(step: str, why: str) -> UpdateResult:
+        """Leave the folder exactly as it was found, so the next run retries."""
+        if created_git:
+            shutil.rmtree(repo_root / ".git", ignore_errors=True)
+        return UpdateResult(
+            message=(
+                "This copy was downloaded as a ZIP and cannot receive fixes. "
+                f"Repairing it failed at `{step}`: {why}. Nothing has been "
+                "touched; see INSTALL.md."
+            )
+        )
+
+    try:
+        for step in (
+            ["git", "init", "--quiet"],
+            ["git", "remote", "add", "origin", upstream],
+            ["git", "fetch", "--quiet", "origin"],
+            # A zipball carries no permission bits on Windows and unreliable
+            # ones elsewhere, so every shell script can come back as a
+            # mode-only change. That is not a modification anybody made, and
+            # left alone it would show up forever as "you have local changes"
+            # and block every update.
+            ["git", "config", "core.fileMode", "false"],
+        ):
+            got = runner(step, repo_root, FETCH_TIMEOUT_S if "fetch" in step else 30)
+            if step[1] == "init" and got.returncode == 0:
+                created_git = True
+            if got.returncode != 0:
+                return undo(
+                    " ".join(step[1:3]),
+                    (got.stderr.strip().splitlines() or ["unknown reason"])[0],
+                )
+
+        branch = _remote_branch(repo_root, runner)
+        if not branch:
+            return undo("git fetch", "the upstream has no main or master branch")
+
+        got = runner(["git", "reset", "--mixed", "--quiet", branch], repo_root, 60)
+        if got.returncode != 0:
+            return undo(
+                "git reset",
+                (got.stderr.strip().splitlines() or ["unknown reason"])[0],
+            )
+
+        note = ""
+        dirty = runner(
+            ["git", "status", "--porcelain", "--untracked-files=no"], repo_root
+        )
+        if dirty.returncode == 0 and dirty.stdout.strip():
+            # Either the ZIP is older than the tip, or they changed something.
+            # Only the first is worth correcting, and finding the commit whose
+            # tree is on disk is what tells the two apart.
+            sha = _commit_matching_tree(repo_root, branch, runner)
+            if sha:
+                runner(["git", "reset", "--mixed", "--quiet", sha], repo_root, 60)
+                note = (
+                    " It was several releases behind, so it now sits on the "
+                    "release it was downloaded from and will update from there."
+                )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return undo("repair", f"{type(exc).__name__}: {exc}")
+
+    return UpdateResult(
+        changed=True,
+        message=(
+            "This copy was downloaded as a ZIP, so it had no way to receive a "
+            "fix or send one. It is now a real checkout. Every file you had, "
+            "including .env and config.yaml, is untouched." + note
+        ),
+    )
 
 
 def _requirements_hash(repo_root: Path) -> str:

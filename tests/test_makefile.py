@@ -9,6 +9,7 @@ and the recorder would simply have stopped existing the next time it was run.
 """
 
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -18,6 +19,13 @@ MAKEFILE = Path(__file__).resolve().parents[1] / "Makefile"
 
 # A target line: a name at column 0, then a colon. Excludes .PHONY and variables.
 TARGET = re.compile(r"^([a-zA-Z][a-zA-Z0-9_-]*)\s*:(?!=)", re.M)
+
+# `make` is not on Windows. The Makefile is still the reference for what
+# every command in this project is, so these stay; they just cannot run
+# where the tool they inspect does not exist.
+pytestmark = pytest.mark.skipif(
+    shutil.which("make") is None, reason="GNU make is not installed here"
+)
 
 
 def _targets() -> list[str]:

@@ -1,3 +1,4 @@
+import sys
 import plistlib
 import subprocess
 
@@ -16,6 +17,17 @@ from src.finder import (
 
 
 # --- payload shapes (these match bytes observed on the user's own folders) ---
+
+# Skipped off macOS rather than failed. A Windows install running the
+# offline suite as START-HERE instructs would otherwise open on dozens
+# of red lines about tooling that platform does not have, at step one,
+# on the one platform the author has never tested. skipif rather than a
+# marker so that `pytest -m "not live"` stays correct everywhere and
+# nobody has to remember a second flag.
+pytestmark = pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="Finder tags and folder icons: xattr, and macOS-only colour labels",
+)
 
 
 def test_emoji_payload():

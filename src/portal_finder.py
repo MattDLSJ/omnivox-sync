@@ -136,11 +136,28 @@ def probe(slug: str, fetch=_get) -> str | None:
     return college or title
 
 
+def _words(name: str) -> set[str]:
+    stripped = unicodedata.normalize("NFKD", name)
+    ascii_name = "".join(c for c in stripped if not unicodedata.combining(c))
+    return {
+        w for w in re.split(r"[^A-Za-z0-9]+", ascii_name.lower())
+        if w and w not in NOISE
+    }
+
+
 def find(name: str, fetch=_get) -> tuple[str, str] | None:
     """(hostname, college name) for `name`, or None when nothing answers."""
-    folded = _fold(name)
+    typed = _words(name)
     for slug, college in VERIFIED.items():
-        if folded and (folded in _fold(college) or _fold(college) in folded):
+        # Every distinguishing word of the college has to be in what was
+        # typed. A plain substring test was worse than useless here:
+        # "Champlain" is inside "Cégep Champlain-St.Lawrence", so a student at
+        # Champlain Saint-Lambert answering the question exactly as it was
+        # asked got St-Lawrence's portal, with no network check, presented as
+        # a confirmed match. Falling through to probing cannot do that,
+        # because a wrong hostname does not answer.
+        known = _words(college)
+        if known and known <= typed:
             return slug, college
     for slug in slugs(name):
         college = probe(slug, fetch)

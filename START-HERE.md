@@ -70,24 +70,28 @@ eventually.
    nothing I have set up needs to be lost:
 
        git init
-       git remote add origin URL_OF_THE_REPOSITORY
+       git remote add origin https://github.com/MattDLSJ/school-automation-share.git
        git fetch origin
        git reset --mixed origin/main
 
-   Ask me for the URL. That last command touches no file in the folder; it
-   only teaches git what is already here.
+   That last command touches no file in the folder; it only teaches git what
+   is already here. Do not ask me for the URL: I do not know it either, and
+   the one above is correct.
 
 2. **My operating system.** macOS and Windows both work. The paths, the
    scheduler and one install step differ.
 
-3. **Which cégep I attend, in plain words.** You do not need a URL from me.
-   Omnivox is one product that nearly every cégep in Quebec runs, and the only
-   thing that differs is the hostname. `make find-portal` asks for the name of
-   my college, works out the hostname, and then checks it against the live
-   site, so it comes back with the college's own name and I can confirm it is
-   mine. If nothing answers, that is not a failure of my college, it is a
-   hostname that could not be derived: then, and only then, ask me to read my
-   address bar.
+3. **Which cégep I attend, in plain words.** Just ask me, and write the answer
+   down; you do not need a URL and neither do I. Omnivox is one product that
+   nearly every cégep in Quebec runs, and the only thing that differs is the
+   hostname. At step 3 below, `make find-portal` turns the name into the
+   hostname and checks it against the live site, so it comes back with the
+   college's own name for me to confirm. It needs the environment from step 1,
+   so it cannot run yet.
+
+   Give it my **full** college name, not a word of it. Several colleges share
+   a first word across different campuses, and a partial name is refused
+   rather than guessed at.
 
    Ask separately whether my college's interface is in **English**. Several
    are, the scraper navigates by clicking visible French text, and there is a
@@ -109,8 +113,16 @@ around it.
 - **Never invent a value in `config.yaml`.** Course codes, folder names and
   notebook names come from the discovery step or from me.
 - **Run the offline tests after every change** and tell me the number that
-  passed: `pytest -m "not live"`. Note it the first time and compare after each
-  step. If it drops, stop and fix that before continuing. No account needed.
+  passed. Use the project's own Python, never a bare `pytest`, which is a
+  different installation and fails on the imports:
+
+      .venv/bin/python -m pytest -m "not live"          macOS
+      .venv\Scripts\python -m pytest -m "not live"       Windows
+
+  Note the number the first time and compare after each step. If it drops,
+  stop and fix that before continuing. No account needed. Tests that only
+  apply to another operating system report as **skipped**, not failed; a
+  handful of skips on Windows is correct and is not something to fix.
 - **Never commit or push, and never run `make publish` or
   `make public-snapshot`.** Those send code to the public repository and belong
   to whoever maintains it, not to me.
@@ -126,7 +138,16 @@ Check in with me at each step rather than running the whole thing silently.
 
 **1. Build the environment.**
 
-macOS: `make venv`. Windows has no `make` and puts Python elsewhere, so:
+macOS: `make venv`, in Terminal.
+
+**On Windows, use PowerShell**, and say so to me, because no single Windows
+shell runs every command in this file as written: `cmd` has no `cp`, and a
+bash-like shell treats the backslashes in `.venv\Scripts\python` as escapes and
+reports a command called `.venvScriptspython`. If you are driving a bash-like
+shell anyway, write those paths with forward slashes, `.venv/Scripts/python`,
+which both Python and Windows accept.
+
+Windows has no `make` and puts Python elsewhere, so:
 
     py -m venv .venv
     .venv\Scripts\python -m pip install -r requirements.txt
@@ -182,7 +203,19 @@ it recovered on its own, `make setup-omnivox` asks me for the password and
 writes it to `.env` without it passing through you or my shell history. Offer
 that once the whole thing is working, not now.
 
-**5. Discover my courses.**
+**5. Ask me which parts of this I want.**
+
+    make setup
+
+A page opens in my browser with three questions: whether I use NotebookLM,
+whether I want lecture recording, and whether I want notifications. It writes
+my answers into `config.yaml`. Do not ask me these in the chat instead; the
+page explains what each choice costs, which a chat message does not.
+
+Everything else has a sensible default and lives behind `make settings`, which
+I can open any time. Mention that it exists, then move on.
+
+**6. Discover my courses.**
 
     make discover
 
@@ -190,7 +223,7 @@ This prints a `courses:` block. Paste it into `config.yaml`, show me the
 result, and ask whether the folder names look right. They become real folders,
 so this is the moment to change them.
 
-**6. Rehearse, then run.**
+**7. Rehearse, then run.**
 
     make dry-run
 
@@ -200,7 +233,7 @@ would have done. Then `make sync` for real.
 The first real run backfills the whole semester so far, which for a normal
 course load is a hundred-odd files. That is correct, not a bug.
 
-**7. Deal with the mess I already have.**
+**8. Deal with the mess I already have.**
 
 After the first sync the tool's folders are clean and my old scattered copies
 are not. Help me here rather than leaving it:
@@ -215,7 +248,7 @@ are not. Help me here rather than leaving it:
 - If I have my own folders from before, ask whether to keep them or move their
   contents into the new structure.
 
-**8. Only once a manual sync works**, ask whether I want it scheduled.
+**9. Only once a manual sync works**, ask whether I want it scheduled.
 macOS: `make install-launchd`. Windows: a Task Scheduler entry pointing at
 `.venv\Scripts\python -m src.omnivox_sync`, with "run as soon as possible after
 a missed start" ticked and `PYTHONUTF8=1` in the environment.

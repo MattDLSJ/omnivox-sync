@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v8 (2026-09-09)
+
+If you set this up before today, read CATCH-UP.md: it gets an existing copy onto this version without losing whatever your AI had to fix, and turns those fixes into a report. Windows installs no longer open on a wall of failing tests; the ones that only apply to another operating system now skip instead. A copy downloaded as a ZIP repairs itself, and correctly lands on the release it was downloaded from. make setup opens a browser page asking which parts of this you actually want, and make settings has the rest, including when the sync runs. NotebookLM has an off switch now, so opting out no longer leaves a folder of copies in every course. And the privacy guard refuses to certify a report when nothing is armed to check it, instead of passing it as clean.
+
 ## v7 (2026-09-09)
 
 Your fixes can now reach everyone else. make report writes up what broke and what you changed, with your OS, Python, college and a diff against the released code filled in already; make send-report checks it for your own private data and opens it as an issue. The sync also updates itself now, at the start of each scheduled run, and refuses to do so if you have your own changes rather than discarding them. Signing in is easier: make login opens a browser, you sign in there, and no password is stored at all unless you want unattended re-login. make find-portal works out your college's Omnivox hostname from its name and verifies it against the live site, so nobody has to read a URL. And a copy downloaded as a ZIP is now detected and repairable: it has no git, so it can never receive a fix or send one.

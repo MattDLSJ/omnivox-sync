@@ -59,7 +59,10 @@ finder:
   color: "green"        # none|gray|green|purple|blue|yellow|red|orange
 
 notebooklm:
-  mode: "auto"          # "auto" | "staging"
+  # "auto"     upload into the notebook named for this course in courses:
+  # "staging"  copy new files to <course>/_to_upload/ and drag them in yourself
+  # "off"      do not do any of this; you do not use NotebookLM
+  mode: "auto"
 
 # Fast-forward to the latest release at the start of each scheduled sync, so
 # fixes arrive without anyone having to remember `make update`. It refuses to
@@ -67,6 +70,12 @@ notebooklm:
 # them, so it cannot eat a fix you made locally.
 update:
   auto: true
+
+# When the scheduled sync runs. Written as HH:MM, comma separated; a YAML list
+# works too if you prefer. `make settings` offers the usual choices.
+# Changing this needs `make install-launchd` again to take effect, because
+# launchd holds its own copy of the schedule.
+sync_times: "07:30, 12:15, 18:30"
 
 at_school_check: "off"  # "off" | "ip" | "ssid"
 school_ip_prefix: ""

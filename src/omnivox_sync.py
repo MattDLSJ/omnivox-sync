@@ -70,15 +70,16 @@ def is_network_error(exc: Exception) -> bool:
     return any(hint in blob for hint in _NETWORK_HINTS)
 
 
-def next_window(now: datetime) -> datetime:
+def next_window(now: datetime, windows=None) -> datetime:
     """The next scheduled sync time after `now`."""
     from datetime import timedelta as _td
 
-    for hour, minute in SYNC_WINDOWS:
+    windows = windows or SYNC_WINDOWS
+    for hour, minute in windows:
         candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         if candidate > now:
             return candidate
-    first = SYNC_WINDOWS[0]
+    first = windows[0]
     return (now + _td(days=1)).replace(
         hour=first[0], minute=first[1], second=0, microsecond=0
     )
@@ -90,7 +91,7 @@ def arm_retry(cfg: Config, reason: str, *, now: datetime | None = None) -> None:
     StateStore(cfg.repo_root / "state" / "retry_pending.json").write(
         [{
             "armed_at": now.isoformat(timespec="seconds"),
-            "deadline": next_window(now).isoformat(timespec="seconds"),
+            "deadline": next_window(now, cfg.sync_times).isoformat(timespec="seconds"),
             "reason": reason[:300],
         }]
     )
@@ -943,6 +944,13 @@ def _run_upload(
     button press picks up files left stranded by an earlier failed upload.
     """
     if not result.upload_queue and not force:
+        return
+    if cfg.notebooklm_mode == "off":
+        # Not everybody uses NotebookLM. Before this existed the only way to
+        # say so was "staging", which still copied every new file into a
+        # _to_upload/ folder in every course.
+        log.info("NotebookLM: off in config; %d queued file(s) left alone",
+                 len(result.upload_queue))
         return
     try:
         from src.notebooklm_upload import NlmUploader, upload_queue

@@ -114,3 +114,38 @@ def test_find_gives_up_rather_than_returning_a_guess():
         raise OSError("no such host")
 
     assert find("Champlain Saint-Lambert", fetch=nothing) is None
+
+
+def test_a_partial_college_name_does_not_confidently_pick_a_campus():
+    """"Champlain" is a substring of "Cégep Champlain-St.Lawrence", and the
+    question START-HERE asks is "which cégep do you attend, in plain words".
+    A student at Champlain Saint-Lambert answering exactly as asked was handed
+    St-Lawrence's portal, with no network check, presented as confirmed.
+
+    Falling through to probing cannot make that mistake: a hostname nobody
+    registered does not answer.
+    """
+
+    def nothing(url):
+        raise OSError("no such host")
+
+    assert find("Champlain", fetch=nothing) is None
+
+
+def test_the_full_name_still_matches_the_known_college():
+    def explode(url):
+        raise AssertionError("should not have needed the network")
+
+    assert find("Champlain St-Lawrence", fetch=explode) == (
+        "slc",
+        "Cégep Champlain-St.Lawrence",
+    )
+
+
+def test_extra_words_do_not_stop_a_known_college_matching():
+    """"I go to cégep Édouard-Montpetit in Longueuil" still identifies it."""
+
+    def explode(url):
+        raise AssertionError("should not have needed the network")
+
+    assert find("cégep Édouard-Montpetit in Longueuil", fetch=explode)[0] == "cegepmontpetit"

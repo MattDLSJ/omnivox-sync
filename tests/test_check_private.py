@@ -229,6 +229,11 @@ def test_the_pre_commit_hook_is_executable():
     """A hook without the execute bit is silently skipped by git."""
     hook = REPO_ROOT / ".githooks" / "pre-commit"
     assert hook.exists()
+    if sys.platform == "win32":
+        # Windows has no execute bit; CPython reports 0o111 only for .exe,
+        # .bat, .cmd and .com, so this assertion is always false there and
+        # says nothing about whether git will run the hook.
+        pytest.skip("no POSIX execute bit on Windows")
     assert os.stat(hook).st_mode & stat.S_IXUSR
 
 

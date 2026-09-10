@@ -28,6 +28,18 @@ from src.micapp import (
     BUNDLE_ID, MicAppError, app_path, binary_path, capture_binary, capture_plist,
     healthy, info_plist,
 )
+import sys
+
+# Skipped off macOS rather than failed. A Windows install running the
+# offline suite as START-HERE instructs would otherwise open on dozens
+# of red lines about tooling that platform does not have, at step one,
+# on the one platform the author has never tested. skipif rather than a
+# marker so that `pytest -m "not live"` stays correct everywhere and
+# nobody has to remember a second flag.
+pytestmark = pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="the signed macOS microphone helper, and its #!/bin/sh stubs",
+)
 
 
 def test_info_plist_names_a_subject_tcc_can_prompt_for():

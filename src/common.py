@@ -23,7 +23,12 @@ import yaml
 from dotenv import dotenv_values
 
 _RANKINGS = {"rules", "gemini"}
-_NB_MODES = {"auto", "staging"}
+#: "auto" uploads into the notebook named for each course. "staging" copies
+#: new files into <course>/_to_upload/ for a manual drag-in. "off" is for the
+#: people who do not use NotebookLM at all, and it exists because staging was
+#: being handed to them as the way to opt out, which still left a folder of
+#: copies in every course they own.
+_NB_MODES = {"auto", "staging", "off"}
 _SCHOOL_CHECKS = {"off", "ip", "ssid", "location", "auto"}
 _COURSE_KEYS = ("code", "omnivox_name", "folder", "notebook")
 
@@ -125,6 +130,10 @@ class Config:
     # fix. It refuses to touch a tree with local changes, so it cannot eat
     # anybody's work. Set `update: auto: false` to turn it off.
     auto_update: bool = True
+    # When the scheduled sync runs, as "HH:MM" separated by commas. Feeds two
+    # things that must agree: the launchd schedule, and the deadline a failed
+    # run uses to decide when it is superseded rather than retried.
+    sync_times: tuple[tuple[int, int], ...] = ((7, 30), (12, 15), (18, 30))
     digest_folder: str = ""  # subfolder of base_path for _digest.md; "" = base_path
     # Relative: a subfolder of each course folder. Absolute (or ~-prefixed): a
     # root of its own, with the course folder under it. Use an absolute path to
@@ -338,6 +347,7 @@ def load_config(config_path: Path, *, repo_root: Path | None = None) -> Config:
         no_class_days=tuple(str(d) for d in (raw.get("no_class_days") or [])),
         finder=finder_cfg,
         auto_update=bool((raw.get("update") or {}).get("auto", True)),
+        sync_times=parse_sync_times(raw.get("sync_times")),
         digest_folder=digest_folder,
         recordings_folder=str(raw.get("recordings_folder", "Voice") or "Voice"),
         books_folder=str(raw.get("books_folder", "3_Livres") or "3_Livres"),
@@ -386,6 +396,45 @@ def build_portal(cfg) -> "object":
                 "travaux_link, docs_nav, lea_link_name, logged_in_text"
             )
     return Portal(**fields)
+
+
+#: The schedule this ships with. Weekday mornings before class, lunchtime, and
+#: after supper: the three moments a document is likely to have been posted
+#: since the last look.
+DEFAULT_SYNC_TIMES = ((7, 30), (12, 15), (18, 30))
+
+
+def parse_sync_times(raw) -> tuple[tuple[int, int], ...]:
+    """Accept "07:30, 12:15" or ["07:30", "12:15"], reject nonsense loudly.
+
+    A string, because the settings page writes this and writing a YAML list
+    from a text editor that only handles scalars is a way to corrupt a config
+    file. A list is still accepted, because that is what somebody editing by
+    hand will naturally write.
+    """
+    if raw is None or raw == "":
+        return DEFAULT_SYNC_TIMES
+    items = raw if isinstance(raw, (list, tuple)) else str(raw).split(",")
+    out = []
+    for item in items:
+        text = str(item).strip()
+        if not text:
+            continue
+        parts = text.split(":")
+        if len(parts) != 2 or not all(p.strip().isdigit() for p in parts):
+            raise ConfigError(
+                f"sync_times: {text!r} is not a time. Write them as HH:MM, "
+                'separated by commas: "07:30, 12:15, 18:30"'
+            )
+        hour, minute = int(parts[0]), int(parts[1])
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            raise ConfigError(f"sync_times: {text!r} is not a real time of day.")
+        out.append((hour, minute))
+    if not out:
+        return DEFAULT_SYNC_TIMES
+    # Sorted, because next_window walks them in order and an out-of-order list
+    # would silently return a window that has already passed.
+    return tuple(sorted(set(out)))
 
 
 def env_value(repo_root: Path, key: str) -> str:

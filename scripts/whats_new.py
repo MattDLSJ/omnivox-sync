@@ -24,9 +24,11 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+import sys as _sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+_sys.path.insert(0, str(REPO_ROOT))
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 MARKER = REPO_ROOT / "state" / ".last-seen-version"
 
@@ -48,6 +50,23 @@ Did you have to fix anything to get this running?
   This is the only way a fix reaches anyone else. The author cannot see your
   machine, your college's portal, or your operating system, so the problems
   you hit are invisible to him until you say so."""
+
+
+def _upstream() -> str:
+    """The real URL, never a word in capitals standing in for one.
+
+    This block is printed to a person, at runtime, with no agent in the loop
+    to substitute anything. A previous version printed
+    URL_OF_THE_REPOSITORY, and running it verbatim succeeds at `git remote
+    add`, fails at `git fetch`, and leaves a half-built .git that silences
+    this very warning for good.
+    """
+    try:
+        from src.updater import UPSTREAM
+
+        return UPSTREAM
+    except Exception:  # noqa: BLE001
+        return "https://github.com/MattDLSJ/school-automation-share.git"
 
 
 def _is_zip_install() -> bool:
@@ -73,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
             "cannot report a fix. It was downloaded as a ZIP.\n\n"
             "Nothing you have set up is lost. From inside this folder:\n\n"
             "  git init\n"
-            "  git remote add origin URL_OF_THE_REPOSITORY\n"
+            f"  git remote add origin {_upstream()}\n"
             "  git fetch origin\n"
             "  git reset --mixed origin/main\n\n"
             "That adopts the history without touching a single one of your\n"

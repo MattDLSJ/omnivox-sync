@@ -17,11 +17,10 @@ student, not a developer. Work through this in order and do not skip ahead.
     git clone https://github.com/MattDLSJ/school-automation-share.git school-automation
     cd school-automation
 
-If that fails with a permission or authentication error, the repository is
-private and I have not been given access yet. Stop and tell me, because
-nothing below works without it. If `gh` is installed and I am signed in,
-`gh repo clone MattDLSJ/school-automation-share school-automation` uses that
-sign-in and usually just works.
+The repository is public, so that needs no account, no sign-in and no
+credentials. If it fails, it is a network problem or a typo, not a permissions
+one: read the error out to me rather than reaching for `gh auth login`, which
+will not help.
 
 **Do not download the ZIP from the web page, and do not accept one if I hand
 you one.** A ZIP has no `.git` folder, and three things break the moment it is

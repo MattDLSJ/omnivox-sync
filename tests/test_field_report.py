@@ -17,6 +17,23 @@ import scripts.field_report as field_report
 check_private = field_report.check_private
 
 
+def _break_gh_only(monkeypatch):
+    """Make `gh` missing without also making `git` missing.
+
+    An earlier version of these tests replaced subprocess.run wholesale, which
+    broke the git calls send() makes before it ever reaches gh, and so tested
+    nothing about the fallback.
+    """
+    real = field_report.subprocess.run
+
+    def run(args, **kwargs):
+        if args and args[0] == "gh":
+            raise FileNotFoundError("gh")
+        return real(args, **kwargs)
+
+    monkeypatch.setattr(field_report.subprocess, "run", run)
+
+
 @pytest.fixture
 def report(tmp_path, monkeypatch):
     path = tmp_path / "field-report.md"
@@ -85,3 +102,77 @@ def test_building_twice_does_not_silently_discard_the_first(report):
         field_report.build(force=False, run_tests=False)
     assert "FORCE=1" in str(exit_info.value)
     assert "hours of notes" in report.read_text(encoding="utf-8")
+
+
+def test_a_missing_github_cli_reaches_the_fallback_instead_of_crashing(report, monkeypatch):
+    """subprocess raises FileNotFoundError when an executable does not exist;
+    it does not return a non-zero code. So every `if returncode != 0` recovery
+    path was unreachable on precisely the machine that needed it: the one with
+    no gh, where the hand-written fallback is the only route the report has.
+    """
+    report.write_text("# Field report\n\nAll answered.\n", encoding="utf-8")
+    monkeypatch.setattr(
+        field_report.check_private, "main", lambda argv: field_report.check_private.EXIT_CLEAN
+    )
+
+    _break_gh_only(monkeypatch)
+
+    with pytest.raises(SystemExit) as exit_info:
+        field_report.send(dry_run=False)
+    message = str(exit_info.value)
+    assert "Nothing is lost" in message
+    assert "issues/new" in message
+    assert report.exists()
+
+
+def test_the_fallback_says_no_special_access_is_needed(report, monkeypatch):
+    """The repo is public, so anyone with a GitHub account can file. Somebody
+    who thinks they need to be added as a collaborator simply will not."""
+    report.write_text("# Field report\n\nAll answered.\n", encoding="utf-8")
+    monkeypatch.setattr(
+        field_report.check_private, "main", lambda argv: field_report.check_private.EXIT_CLEAN
+    )
+    _break_gh_only(monkeypatch)
+    with pytest.raises(SystemExit) as exit_info:
+        field_report.send(dry_run=False)
+    assert "do NOT need any special access" in str(exit_info.value)
+
+
+def test_a_todo_inside_the_patch_does_not_block_the_send(report, monkeypatch):
+    """The agent writing the workaround is the agent writing the report, and
+    `# TODO:` is its house style. A marker inside the diff refused the send
+    forever, with no way out short of editing the fix itself."""
+    report.write_text(
+        "# Field report\n\n## What went wrong\n\nIt broke.\n\n"
+        "## Patch\n\n```diff\n+# TODO: check this on an English portal\n```\n",
+        encoding="utf-8",
+    )
+    seen = {}
+    monkeypatch.setattr(
+        field_report.check_private,
+        "main",
+        lambda argv: seen.setdefault("argv", argv) and field_report.check_private.EXIT_CLEAN,
+    )
+    _break_gh_only(monkeypatch)
+    with pytest.raises(SystemExit) as exit_info:
+        field_report.send(dry_run=False)
+    # It got past the marker check to the send, which is the point.
+    assert "unanswered" not in str(exit_info.value).lower()
+
+
+def test_the_privacy_check_is_asked_to_certify(report, monkeypatch):
+    """Without --certify the guard passes anything at all on a fresh install,
+    where .private-patterns is still the comments-only example and .env is
+    empty by design. That is exactly the machine a first report comes from."""
+    report.write_text("# Field report\n\nAll answered.\n", encoding="utf-8")
+    seen = {}
+
+    def fake_main(argv):
+        seen["argv"] = argv
+        return field_report.check_private.EXIT_CANNOT_CHECK
+
+    monkeypatch.setattr(field_report.check_private, "main", fake_main)
+    with pytest.raises(SystemExit) as exit_info:
+        field_report.send(dry_run=True)
+    assert "--certify" in seen["argv"]
+    assert "student number" in str(exit_info.value)

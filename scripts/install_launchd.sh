@@ -18,7 +18,9 @@ install_job() {
   [ -f "$TEMPLATE" ] || { echo "Missing template: $TEMPLATE" >&2; exit 1; }
 
   mkdir -p "$REPO/logs" "$HOME/Library/LaunchAgents"
-  sed -e "s|__REPO__|$REPO|g" -e "s|__PYTHON__|$PYTHON|g" "$TEMPLATE" > "$RENDERED"
+  # Python, not sed: the sync schedule comes from config.yaml now, and it is
+  # a block of XML rather than a word. See scripts/render_plist.py.
+  "$PYTHON" "$REPO/scripts/render_plist.py" "$LABEL" > "$RENDERED"
   plutil -lint "$RENDERED" >/dev/null
   cp "$RENDERED" "$TARGET"
 

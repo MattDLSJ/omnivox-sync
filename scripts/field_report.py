@@ -34,6 +34,7 @@ import json
 import platform
 import subprocess
 import sys
+import urllib.parse
 from datetime import date
 from pathlib import Path
 
@@ -157,15 +158,28 @@ def _which_python() -> str:
 
 
 def _tests() -> str:
-    got = subprocess.run(
-        # No -q: pyproject already sets one, and a second suppresses the
-        # summary line, which is the only line worth collecting here.
-        [sys.executable, "-m", "pytest", "-m", "not live"],
-        cwd=str(REPO_ROOT),
-        capture_output=True,
-        text=True,
-        timeout=900,
-    )
+    """Whether the offline suite passes, as one line.
+
+    Wrapped, because this runs on a machine where the setup is by definition
+    not finished: pytest may not be installed, the environment may be
+    half-built, a hung test would otherwise take the whole report down with
+    it. Every one of those is itself worth reporting, and none of them is a
+    reason to lose the write-up.
+    """
+    try:
+        got = subprocess.run(
+            # No -q: pyproject already sets one, and a second suppresses the
+            # summary line, which is the only line worth collecting here.
+            [sys.executable, "-m", "pytest", "-m", "not live"],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=900,
+        )
+    except subprocess.TimeoutExpired:
+        return "the offline suite did not finish within 15 minutes"
+    except OSError as exc:
+        return f"could not run pytest ({type(exc).__name__}: {exc})"
     lines = [l for l in got.stdout.strip().splitlines() if l.strip()]
     return lines[-1] if lines else "pytest produced no output"
 
@@ -220,6 +234,23 @@ def _patch() -> str:
     return "\n".join(out)
 
 
+def _gh(*args: str) -> subprocess.CompletedProcess:
+    """Run gh, and treat "not installed" as a failure rather than a crash.
+
+    subprocess raises FileNotFoundError when the executable does not exist; it
+    does not return a non-zero code. So every `if returncode != 0` recovery
+    path below was unreachable on exactly the machine that needed it: the one
+    with no gh, where the hand-written fallback is the only way the report
+    ever reaches anybody.
+    """
+    try:
+        return subprocess.run(["gh", *args], capture_output=True, text=True)
+    except (FileNotFoundError, OSError) as exc:
+        return subprocess.CompletedProcess(
+            ["gh", *args], 127, "", f"the GitHub CLI is not installed here ({exc})"
+        )
+
+
 def _remote_slug() -> str:
     url = _git("remote", "get-url", "origin", check=False)
     if not url:
@@ -228,7 +259,17 @@ def _remote_slug() -> str:
             f"is written at {REPORT}; send that file to whoever gave you the "
             "repository."
         )
+    return _slug_of(url)
+
+
+def _slug_of(url: str) -> str:
     return url.rstrip("/").removesuffix(".git").split("github.com", 1)[-1].lstrip(":/")
+
+
+def _published_slug() -> str:
+    """Where releases are published, which is where reports arrive."""
+    remote = _git("config", "--get", "snapshot.remote", check=False)
+    return _slug_of(remote) if remote else _remote_slug()
 
 
 def build(force: bool, run_tests: bool) -> int:
@@ -259,9 +300,14 @@ def send(dry_run: bool) -> int:
         raise SystemExit("No field-report.md. Build one first with `make report`.")
     text = REPORT.read_text(encoding="utf-8")
 
+    # Only the questions, never the patch. The agent writing the workaround is
+    # the same agent writing the report, and `# TODO:` is its house style, so a
+    # marker inside the diff would refuse the send forever with no way out
+    # short of editing the fix itself.
+    questions = text.split("\n## Patch", 1)[0]
     left = [
         f"  line {number}: {line.strip()[:70]}"
-        for number, line in enumerate(text.splitlines(), 1)
+        for number, line in enumerate(questions.splitlines(), 1)
         if MARKER in line
     ]
     if left:
@@ -272,8 +318,12 @@ def send(dry_run: bool) -> int:
             "nothing about\nwhat. Answer them, then run this again."
         )
 
+    # --certify, because this is about to become a public GitHub issue. Without
+    # it the guard passes anything at all on a fresh install, where
+    # .private-patterns is still the comments-only example and .env is empty by
+    # design: the exact machine a first report comes from.
     verdict = check_private.main(
-        ["--message-file", str(REPORT), "--label", "field report"]
+        ["--message-file", str(REPORT), "--label", "field report", "--certify"]
     )
     if verdict == check_private.EXIT_HIT:
         raise SystemExit(
@@ -283,7 +333,19 @@ def send(dry_run: bool) -> int:
             "have your name in them."
         )
     if verdict == check_private.EXIT_CANNOT_CHECK:
-        raise SystemExit("\nCould not check the report, so it was not sent.")
+        raise SystemExit(
+            "\nThe report was NOT sent, because nothing is currently checking it "
+            "for\nyour own details. Open .private-patterns and add, one per "
+            "line:\n\n"
+            "  your full name, and any short form of it you use\n"
+            "  your student number\n"
+            "  the short username in your home folder path\n"
+            "  the name your computer calls itself\n\n"
+            "Then run `make send-report` again. The file is gitignored and never "
+            "leaves\nthis machine; it exists so that those words can be caught "
+            "before they are\npublished. Your report is still at\n"
+            f"  {REPORT}"
+        )
 
     slug = _remote_slug()
     title = f"[field report] {platform.system()} / {_portal().split(' (')[0]} / {_release()}"
@@ -291,48 +353,74 @@ def send(dry_run: bool) -> int:
         print(f"\n[dry-run] would open an issue on {slug} titled:\n  {title}")
         return 0
 
-    got = subprocess.run(
-        ["gh", "issue", "create", "--repo", slug, "--title", title,
-         "--body-file", str(REPORT), "--label", "field report"],
-        capture_output=True,
-        text=True,
-    )
+    got = _gh("issue", "create", "--repo", slug, "--title", title,
+              "--body-file", str(REPORT), "--label", "field report")
     if got.returncode != 0:
         # Retry without the label: it may not exist on a fork, and a missing
         # label is not a reason to lose the report.
-        got = subprocess.run(
-            ["gh", "issue", "create", "--repo", slug, "--title", title,
-             "--body-file", str(REPORT)],
-            capture_output=True,
-            text=True,
-        )
+        got = _gh("issue", "create", "--repo", slug, "--title", title,
+                  "--body-file", str(REPORT))
     if got.returncode != 0:
         print(got.stderr.strip(), file=sys.stderr)
-        raise SystemExit(
-            f"\nCould not open the issue. The report is checked and ready at\n"
-            f"  {REPORT}\n\n"
-            f"Send that file to whoever gave you the repository, or paste it "
-            f"in by hand at\n  https://github.com/{slug}/issues/new"
-        )
+        raise SystemExit(_by_hand(slug, title, REPORT.read_text(encoding="utf-8")))
     print(f"\nSent.\n  {got.stdout.strip()}\n\nDelete {REPORT.name} once you are done with it.")
     return 0
 
 
-def collect(out: Path) -> int:
-    """Maintainer's side. One file with every report in it, to hand to an AI."""
-    slug = _remote_slug()
-    got = subprocess.run(
-        ["gh", "issue", "list", "--repo", slug, "--state", "all", "--limit", "100",
-         "--json", "number,title,body,createdAt,author,state"],
-        capture_output=True,
-        text=True,
+#: A prefilled issue URL is the difference between "go and retype all this"
+#: and one click. Browsers and servers both give up somewhere past 8k, so the
+#: body only travels this way when it is small enough to arrive intact. A
+#: silently truncated bug report is worse than no link at all.
+MAX_PREFILL = 6000
+
+
+def _by_hand(slug: str, title: str, body: str) -> str:
+    """What to say when gh could not do it. Never lose the report."""
+    lines = [
+        "\nCould not open the issue automatically. Nothing is lost: the report "
+        "is\nwritten, checked, and sitting at\n",
+        f"  {REPORT}\n",
+        "\nYou do NOT need any special access to send it. The repository is "
+        "public\nand anyone with a GitHub account can open an issue on it. Three "
+        "ways,\neasiest first:\n",
+    ]
+    if len(body) <= MAX_PREFILL:
+        query = urllib.parse.urlencode({"title": title, "body": body})
+        lines.append(
+            f"\n1. Open this link. It is the whole report, already filled in;\n"
+            f"   press Submit.\n\n   https://github.com/{slug}/issues/new?{query}\n"
+        )
+    else:
+        lines.append(
+            f"\n1. Open https://github.com/{slug}/issues/new and paste the file "
+            f"in.\n   (Too long to put in the link itself.)\n"
+        )
+    lines.append(
+        "\n2. Or sign in to the GitHub CLI once, and run this again:\n"
+        "     gh auth login\n"
+        "     make send-report\n"
+        "\n3. Or just send that file to whoever gave you this project.\n"
     )
+    return "".join(lines)
+
+
+def collect(out: Path) -> int:
+    """Maintainer's side. One file with every report in it, to hand to an AI.
+
+    Reports arrive on the PUBLISHED repo, which is not this one: `origin` here
+    is the private development repo, and asking it for field reports returns
+    "none yet" forever while the real ones pile up somewhere else.
+    """
+    slug = _published_slug()
+    print(f"Reading field reports from {slug}")
+    got = _gh("issue", "list", "--repo", slug, "--state", "all", "--limit", "100",
+              "--json", "number,title,body,createdAt,author,state")
     if got.returncode != 0:
         print(got.stderr.strip(), file=sys.stderr)
         raise SystemExit("Could not list the issues.")
     issues = [i for i in json.loads(got.stdout) if i["title"].startswith("[field report]")]
     if not issues:
-        print(f"No field reports on {slug} yet.")
+        print(f"No field reports on {slug} yet. (That is the repo that was queried.)")
         return 0
     parts = [
         f"# Field reports from {slug}\n",

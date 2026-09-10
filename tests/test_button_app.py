@@ -1,3 +1,4 @@
+import sys
 """The Dock button.
 
 The app is deliberately tiny: it asks launchd to run com.school.manual once and
@@ -17,6 +18,17 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "make_button_app.sh"
+
+# Skipped off macOS rather than failed. A Windows install running the
+# offline suite as START-HERE instructs would otherwise open on dozens
+# of red lines about tooling that platform does not have, at step one,
+# on the one platform the author has never tested. skipif rather than a
+# marker so that `pytest -m "not live"` stays correct everywhere and
+# nobody has to remember a second flag.
+pytestmark = pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="builds a macOS .app bundle and checks POSIX permission bits",
+)
 
 
 @pytest.fixture(scope="module")
