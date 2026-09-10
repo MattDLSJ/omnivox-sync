@@ -404,7 +404,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--message-file",
-        help="scan one commit message being written, which is what commit-msg runs",
+        help="scan one piece of prose being written, which is what commit-msg runs",
+    )
+    parser.add_argument(
+        "--label",
+        default="commit message",
+        help="what that prose IS, so the refusal names the right thing. A "
+        "field report told to reword its commit message sends people looking "
+        "for a commit that does not exist.",
     )
     args = parser.parse_args(argv)
 
@@ -412,32 +419,43 @@ def main(argv: list[str] | None = None) -> int:
         try:
             needles = collect_needles(REPO_ROOT)
             exceptions = collect_exceptions(REPO_ROOT)
-            if not needles:
-                raise CannotCheck("nothing to look for; see .private-patterns.example.")
         except CannotCheck as exc:
             print(f"check-private: CANNOT CHECK. {exc}", file=sys.stderr)
             return EXIT_CANNOT_CHECK
+        if not needles:
+            # Nothing private is configured here, so there is nothing to look
+            # for. That is a fresh clone, not a failure: refusing was how the
+            # commit-msg hook came to reject every commit somebody tried to
+            # make on their own copy.
+            print(
+                "check-private: nothing private configured here, so there is "
+                "nothing to guard. Normal on a fresh clone."
+            )
+            return EXIT_CLEAN
         message = Path(args.message_file).read_text(encoding="utf-8", errors="replace")
         # Strip the comment lines git adds; they quote the diff and the branch.
         body = "\n".join(
             line for line in message.splitlines() if not line.startswith("#")
         )
         found = [
-            f"commit message  {n.label} ({n.redacted()})"
+            f"{args.label}  {n.label} ({n.redacted()})"
             for n in needles
             if n.search(body)
             and not any(a in body.lower() for a in exceptions)
         ]
         if not found:
-            print("check-private: commit message clean.")
+            print(f"check-private: {args.label} clean.")
             return EXIT_CLEAN
-        print("check-private: the commit message names something personal.\n")
+        print(f"check-private: the {args.label} names something personal.\n")
         for hit in found:
             print(f"  {hit}")
-        print(
-            "\nA commit message cannot be edited later without rewriting every\n"
-            "SHA after it. Reword it now."
-        )
+        if args.label == "commit message":
+            print(
+                "\nA commit message cannot be edited later without rewriting every\n"
+                "SHA after it. Reword it now."
+            )
+        else:
+            print(f"\nReword the {args.label} and try again.")
         return EXIT_HIT
 
     root = Path(args.path).resolve()

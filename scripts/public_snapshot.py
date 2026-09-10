@@ -52,6 +52,9 @@ FORBIDDEN = (
     "config.yaml",
     ".private-patterns",
     "horaires-cegep",
+    # `make report` output: a transcript of somebody's terminal, and therefore
+    # of their paths and their name. Gitignored, so this is belt and braces.
+    "field-report.md",
 )
 
 #: These directories DO ship, because the code expects them to exist, but only

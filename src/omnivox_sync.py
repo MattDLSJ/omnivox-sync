@@ -970,7 +970,7 @@ def _run_upload(
 @contextmanager
 def _open_session(cfg, *, headed: bool, logger):
     """Open a logged-in Omnivox session. Seam for tests: patched with a fake."""
-    user, password = load_credentials(cfg.repo_root)
+    user, password = load_credentials(cfg.repo_root, required=False)
     with OmnivoxSession(
         cfg.repo_root / "state" / "omnivox-profile",
         headed=headed,
@@ -1006,6 +1006,15 @@ def _doctor(cfg: Config) -> int:
     """
     problems = []
 
+    if not (cfg.repo_root / ".git").exists():
+        problems.append(
+            "This folder is not a git checkout, so it cannot pull fixes and "
+            "cannot report one. It was downloaded as a ZIP rather than cloned. "
+            "See INSTALL.md; the repair keeps every file you have."
+        )
+    else:
+        print("  checkout       git, so updates and reports work")
+
     block = login_block(cfg)
     if block:
         problems.append(f"Omnivox login is blocked. {login_block_summary(cfg)}")
@@ -1040,17 +1049,37 @@ def _doctor(cfg: Config) -> int:
     else:
         problems.append("No sync has ever finished. Try: make dry-run")
 
-    env = cfg.repo_root / ".env"
-    if not env.exists():
-        problems.append("No .env. Copy .env.example and fill it in.")
-    else:
-        print("  credentials    .env present")
-
     profile = cfg.repo_root / "state" / "omnivox-profile"
     if not profile.exists():
         problems.append("No browser profile yet. Run: make login")
     else:
         print("  browser        profile stored")
+
+    # Credentials are optional, so their absence is a MODE and not a fault.
+    # Reporting "No .env" as a problem sent people off to edit a file when
+    # signing in once in the browser is both easier and what they had already
+    # done. It only becomes a problem when there is no session either.
+    user, password = load_credentials(cfg.repo_root, required=False)
+    if user and password:
+        print("  credentials    stored, so it can sign back in unattended")
+    elif profile.exists():
+        print("  credentials    none, by design; `make login` again if it expires")
+    else:
+        problems.append(
+            "Nothing here can sign in: no stored session and no credentials. "
+            "Run: make login"
+        )
+
+    updates = StateStore(cfg.repo_root / "state" / "last_update.json").read()
+    if updates:
+        last = updates[0]
+        if last.get("blocked"):
+            problems.append(f"Auto-update is stuck. {last.get('message', '')}")
+        else:
+            when = str(last.get("at", ""))[:16].replace("T", " ")
+            print(f"  updates        checked {when}")
+    elif not cfg.auto_update:
+        print("  updates        automatic updates are off")
 
     retry = StateStore(cfg.repo_root / "state" / "retry_pending.json").read()
     if retry:
@@ -1072,8 +1101,13 @@ def _bootstrap_login(cfg: Config, log: logging.Logger) -> int:
     The 6-digit code is entered by the user in the browser. This program never
     reads, requests, stores, or types it.
     """
-    user, password = load_credentials(cfg.repo_root)
+    user, password = load_credentials(cfg.repo_root, required=False)
     print("Opening Omnivox in a visible browser window.")
+    if user and password:
+        print("Your saved credentials will be filled in for you.")
+    else:
+        print("Type your student number and password into that window. They are")
+        print("not stored anywhere by this program; the signed-in session is.")
     print("If it asks for a 6-digit code, check your email, type the code in that")
     print("window, and TICK \"J'utilise un appareil de confiance\" before validating.")
     print("Waiting up to 10 minutes...\n")
@@ -1166,7 +1200,23 @@ def main(argv: list[str] | None = None) -> int:
     # --- fatal setup errors: nothing ran ---
     try:
         cfg = load_config(config_path, repo_root=repo_root)
-        load_credentials(repo_root)  # fail fast before opening a browser
+        # Fail fast before opening a browser, but on the real precondition:
+        # SOMETHING must be able to sign in. A stored session is enough on its
+        # own, and is how anyone who signed in by hand is set up.
+        #
+        # Not for --doctor or --login. Those are the two commands that EXIST to
+        # answer and to fix this exact state, and refusing to run them because
+        # of it leaves somebody with an error telling them to run the command
+        # that just refused.
+        needs_a_way_in = not (args.doctor or args.login)
+        if needs_a_way_in and not (repo_root / "state" / "omnivox-profile").exists():
+            user, password = load_credentials(repo_root, required=False)
+            if not (user and password):
+                raise ConfigError(
+                    "Nothing here can sign in to Omnivox yet: no stored session, "
+                    "and no credentials in .env. Sign in once, in a browser:\n"
+                    "    make login"
+                )
     except ConfigError as exc:
         log.error("Configuration error: %s", exc)
         notify("School sync failed", str(exc), critical=True)
@@ -1195,6 +1245,41 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
 
+def _run_update(cfg: Config, log: logging.Logger) -> None:
+    """Self-update, recorded where a person will find it. Never raises."""
+    try:
+        from src.updater import check_and_apply
+
+        result = check_and_apply(cfg.repo_root)
+        store = StateStore(cfg.repo_root / "state" / "last_update.json")
+        previous = store.read()
+        said_before = bool(previous) and previous[0].get("message") == result.message
+        store.write(
+            [{
+                "at": datetime.now().isoformat(timespec="seconds"),
+                "changed": result.changed,
+                "blocked": result.blocked,
+                "message": result.message,
+            }]
+        )
+        if result.blocked:
+            log.warning("Auto-update: %s", result.message)
+            # The one case worth interrupting somebody for: their own fix is
+            # sitting on their laptop helping nobody, and they do not know it.
+            # Once, though. The identical banner three times a day is how the
+            # login outage went unnoticed for two days.
+            if not said_before:
+                notify("School sync: your copy has local changes",
+                       result.message, cfg=cfg.notify)
+        elif result.changed:
+            # Deliberately quiet. The point is that they never think about it.
+            log.info("Auto-update: %s", result.message)
+        else:
+            log.debug("Auto-update: %s", result.message)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Auto-update skipped: %s: %s", type(exc).__name__, exc)
+
+
 def _run(args, cfg: Config, log: logging.Logger) -> int:
     """The sweep itself. Always called with state/omnivox.lock held."""
     if args.manual and not args.login:
@@ -1205,6 +1290,13 @@ def _run(args, cfg: Config, log: logging.Logger) -> int:
 
     if args.login:
         return _bootstrap_login(cfg, log)
+
+    # Before anything else that can fail, and before the login block, because
+    # a release that fixes the thing somebody is stuck on is exactly the
+    # release they will otherwise never receive. Never fatal: the fallback is
+    # the code that already worked yesterday.
+    if cfg.auto_update and not args.dry_run and not args.discover:
+        _run_update(cfg, log)
 
     blocked = login_block(cfg)
     if blocked:

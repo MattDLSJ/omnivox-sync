@@ -97,7 +97,9 @@ def _check_message(message: str) -> None:
     note.parent.mkdir(parents=True, exist_ok=True)
     note.write_text(message, encoding="utf-8")
     try:
-        code = check_private.main(["--message-file", str(note)])
+        code = check_private.main(
+            ["--message-file", str(note), "--label", "release note"]
+        )
     finally:
         note.unlink(missing_ok=True)
     if code == check_private.EXIT_HIT:

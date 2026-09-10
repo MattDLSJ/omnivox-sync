@@ -5,6 +5,10 @@ this folder.** That is the setup. There is no installer and no interface: this
 is a command-line tool somebody built for their own semester, and the AI is
 what turns it into yours.
 
+If you have not got the folder yet, `INSTALL.md` is the shorter file that gets
+you one. Clone it with git; a downloaded ZIP looks identical and quietly
+cannot be updated.
+
 Stop and ask it anything at any point. It has the code in front of it.
 
 ---
@@ -56,29 +60,52 @@ eventually.
 3. **Tell me what I can now ask you for.** This is the part that matters and
    the part you will be tempted to skip. Do not skip it.
 
-### Before you touch anything, confirm three things
+### Before you touch anything, confirm four things
 
-1. **My operating system.** macOS and Windows both work. The paths, the
+1. **That this folder is a git checkout.** Run `git status`. If it answers
+   "not a git repository", I downloaded the ZIP instead of cloning, and three
+   things are silently broken: I can never pull a fix, `make report` cannot
+   see what I changed, and `make install-hooks` has nothing to install into.
+   Fix it before anything else, and do not start over from scratch, because
+   nothing I have set up needs to be lost:
+
+       git init
+       git remote add origin URL_OF_THE_REPOSITORY
+       git fetch origin
+       git reset --mixed origin/main
+
+   Ask me for the URL. That last command touches no file in the folder; it
+   only teaches git what is already here.
+
+2. **My operating system.** macOS and Windows both work. The paths, the
    scheduler and one install step differ.
-2. **Which cégep I attend.** Omnivox is one product used by nearly every cégep
-   in Quebec, so this very likely works for mine, but the hostname has to
-   match. Ask me to log into my portal and read the address bar: if it says
-   `https://cegepmontpetit.omnivox.ca` then my portal name is
-   `cegepmontpetit`. That goes in `config.yaml` at step 3. If my college's
-   interface is in English rather than French, say so now, because six pieces
-   of visible text need swapping and there is a `labels:` block for exactly
-   that.
-3. **Python 3.11 or newer.** `python3 --version` on macOS, `py --version` on
+
+3. **Which cégep I attend, in plain words.** You do not need a URL from me.
+   Omnivox is one product that nearly every cégep in Quebec runs, and the only
+   thing that differs is the hostname. `make find-portal` asks for the name of
+   my college, works out the hostname, and then checks it against the live
+   site, so it comes back with the college's own name and I can confirm it is
+   mine. If nothing answers, that is not a failure of my college, it is a
+   hostname that could not be derived: then, and only then, ask me to read my
+   address bar.
+
+   Ask separately whether my college's interface is in **English**. Several
+   are, the scraper navigates by clicking visible French text, and there is a
+   `labels:` block for exactly this. Getting it wrong does not raise an error.
+   It reports "no documents" cheerfully, forever.
+
+4. **Python 3.11 or newer.** `python3 --version` on macOS, `py --version` on
    Windows. Show me what it says.
 
-If any of the three is a no, stop and tell me what it would take. Do not
-improvise around it.
+If any of those is a no, stop and tell me what it would take. Do not improvise
+around it.
 
 ### Rules
 
 - **Never ask me for a password in the chat, and never type one into a file
-  yourself.** When we get there, tell me to open `.env` and type it in, then
-  confirm the file is filled without printing what is in it.
+  yourself.** You do not need my password at any point: I sign in myself, in a
+  real browser window, at step 4. If we later add one for unattended re-login,
+  `make setup-omnivox` asks me directly and writes it without showing you.
 - **Never invent a value in `config.yaml`.** Course codes, folder names and
   notebook names come from the discovery step or from me.
 - **Run the offline tests after every change** and tell me the number that
@@ -88,6 +115,10 @@ improvise around it.
   `make public-snapshot`.** Those send code to the public repository and belong
   to whoever maintains it, not to me.
 - **Show me real output** rather than telling me it worked.
+- **Write down anything you had to fix.** Not at the end, when you have
+  forgotten: keep a running note as you go, and turn it into a report at the
+  end with `make report`. Details below, and it matters more than it sounds
+  like it does.
 
 ### Order of operations
 
@@ -120,21 +151,36 @@ not setting up.
     cp .env.example .env
     cp .private-patterns.example .private-patterns
 
-Then set three things before anything else: my portal name under `school:`,
-`notebooklm: mode: "staging"`, and `notify: macos: false`. The last two are
-explained at the bottom.
+Then set three things: my portal name under `school:`, from step 3 of the
+confirmations above, plus `notebooklm: mode: "staging"` and
+`notify: macos: false`. The last two are explained at the bottom.
 
-Now stop and tell me to fill in `OMNIVOX_USER` and `OMNIVOX_PASS` in `.env`
-myself. `OMNIVOX_USER` is my student number.
+Nothing goes in `.env` yet, and probably nothing ever will. Leave it alone.
 
-**4. Log in once, in a real browser.**
+**4. Sign in once, in a real browser.**
 
     make login
 
-I type my credentials, Omnivox emails a six-digit code, I enter it. **Tell me
-before I start that I have to tick "J'utilise un appareil de confiance."** Miss
-it and everything looks fine today, then every scheduled run afterwards gets
-challenged, so it quietly stops working tomorrow.
+A browser window opens on Omnivox. **I** type my student number and password
+into it, Omnivox e-mails me a six-digit code, and **I** type that in too. You
+never see any of it and nothing is written to disk except the signed-in
+session, which is what every run from here uses.
+
+Two things to tell me **before** I start, because both are invisible
+afterwards:
+
+- **I have to tick "J'utilise un appareil de confiance"** before validating
+  the code. Miss it and today works perfectly, then every scheduled run
+  afterwards gets challenged, and it quietly stops working tomorrow.
+- The window waits ten minutes and then gives up. If I wander off, run it
+  again; nothing is harmed.
+
+There is no password stored anywhere after this, on purpose. What that costs
+is unattended recovery: when the session cookie eventually expires, a person
+has to run `make login` again rather than it fixing itself. If I would rather
+it recovered on its own, `make setup-omnivox` asks me for the password and
+writes it to `.env` without it passing through you or my shell history. Offer
+that once the whole thing is working, not now.
 
 **5. Discover my courses.**
 
@@ -249,16 +295,21 @@ find again:
 
     make update
 
-On Windows, or anywhere without `make`, that is two commands:
+On Windows, or anywhere without `make`, that is three commands:
 
     git pull --ff-only
     .venv\Scripts\python -m pip install -r requirements.txt
+    .venv\Scripts\python scripts\whats_new.py
 
 The second matters. Dependencies change between releases, and pulling alone
 leaves me with new code and old packages, which fails in a way that looks like
-a bug in the project. `CHANGELOG.md` says what changed in each version. If the
-pull refuses because I have my own commits, tell me to put them on a branch or
-stash them rather than forcing anything.
+a bug in the project. The third prints what actually changed in the releases I
+just pulled, which is the only way to notice that a fix I patched around by
+hand last week is now in the project properly.
+
+If the pull refuses because I have my own commits, tell me to put them on a
+branch or stash them rather than forcing anything. And if it refuses because
+this is not a git repository, go back to confirmation 1.
 
 ### The two settings from step 3
 
@@ -274,6 +325,48 @@ would guess, put it there, and subscribe to the same name in the ntfy app.
 Explain that an ntfy topic has no password, so anyone who knows the name can
 read my notifications, which is why it lives in `.env` and never in
 `config.yaml`.
+
+### Send back whatever you had to fix
+
+Read this even if everything worked, because it changes what you should be
+doing during the steps above.
+
+This project was written by one student, for one machine, at one cégep, in
+French. It is now being run at other colleges, on Windows, in English. Every
+one of those turns up something its author has never seen and cannot see: he
+does not have my laptop, my college's portal, or my error messages. The only
+information that exists about any of it is what the person who hit it writes
+down.
+
+So **keep a running note while you work**. Not a summary at the end, when the
+exact error has scrolled away. Every time you work around something, note the
+command, the error, and what you changed. Include the ones you are unsure
+about; a workaround that happens to work is somebody else's bug report next
+month.
+
+Then:
+
+    make report
+
+That writes `field-report.md` with the machine-knowable parts already filled
+in: my OS, my Python, my college, whether the tests pass, and a diff of every
+line that differs from the released code. It leaves a handful of questions
+that only you can answer. Answer all of them, then:
+
+    make send-report
+
+which checks the finished report for **my** private data and refuses to send
+if it finds any, then opens it as an issue on the repository we cloned.
+
+The one question worth thinking about rather than filling in: **does this
+belong upstream?** Editing `config.yaml` to name my courses is setup, and
+there is nothing to report. Patching a source file because my college's portal
+is in English, or because a path only works on macOS, is a fix that everybody
+else needs. Say which one it was, and say why. Guess out loud if you are not
+sure; a wrong guess with reasoning is useful and a blank is not.
+
+If `make send-report` cannot reach GitHub, do not throw the report away. Tell
+me where the file is and that I should send it to whoever gave me this.
 
 ### When you are done
 

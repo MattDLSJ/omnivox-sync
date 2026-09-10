@@ -13,6 +13,11 @@ config.yaml
 # Where `make public-snapshot` builds the shareable copy.
 build/
 
+# `make report` writes this. It quotes your terminal, which quotes your paths,
+# which have your name in them. It is meant to be read, checked and sent, not
+# committed.
+field-report.md
+
 .venv/
 __pycache__/
 *.pyc

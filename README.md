@@ -42,10 +42,14 @@ and lose the folder colours, which the code degrades to a warning. The lecture
 recorder is macOS only and stays inert until `schedule:` is filled in. Scheduling is `launchd`, the folder presentation uses
 Finder tags and `xattr`, and several paths assume Homebrew at `/opt/homebrew`.
 
-**It is also wired to one school.** The scraper talks to
-`cegepmontpetit.omnivox.ca`, so running the pipeline end to end needs an Omnivox
-account at cégep Édouard-Montpetit. Without one you can still read the code and
-run `make test-unit`, which is the whole offline suite and needs no account.
+**It needs an Omnivox account, but not a particular one.** Omnivox is one
+product that nearly every cégep in Quebec runs, and the only thing that differs
+between two installations is the hostname. Set `school: portal:` in
+`config.yaml` to yours and the scraper follows; `make find-portal` works it out
+from the name of your college and checks the answer against the live site. An
+English-language portal additionally needs the `labels:` block, because the
+scraper navigates by clicking visible text. Without any account you can still
+read the code and run `make test-unit`, which is the whole offline suite.
 
 Install these first. Only Python and `ffmpeg` are needed for the Omnivox side;
 the rest are for the recorder, the transcripts and the Office-to-PDF step.

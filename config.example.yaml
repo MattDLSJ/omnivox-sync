@@ -61,6 +61,13 @@ finder:
 notebooklm:
   mode: "auto"          # "auto" | "staging"
 
+# Fast-forward to the latest release at the start of each scheduled sync, so
+# fixes arrive without anyone having to remember `make update`. It refuses to
+# touch a copy that has its own changes, and says so rather than discarding
+# them, so it cannot eat a fix you made locally.
+update:
+  auto: true
+
 at_school_check: "off"  # "off" | "ip" | "ssid"
 school_ip_prefix: ""
 school_ssid: ""         # Wi-Fi name that means "on campus"; used when at_school_check = "ssid"

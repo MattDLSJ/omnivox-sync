@@ -437,14 +437,25 @@ class OmnivoxSession:
         Always starts from the Omnivox homepage: session deep links expire
         (spec section 7 step 2).
         """
-        if not user or not password:
-            raise LoginError("OMNIVOX_USER / OMNIVOX_PASS are empty; fill in .env")
-
         _goto(self.page, self.portal.home, logger=self.log)
 
         if self.is_logged_in():
             self.log.info("Existing Omnivox session reused; skipping login form")
             return
+
+        # Only now do credentials matter. Checking them first, which is what
+        # this used to do, refused to start for anyone who had signed in by
+        # hand and never put a password on disk, even though their stored
+        # session was valid and about to be used.
+        if not user or not password:
+            raise LoginError(
+                "The stored session is no longer valid and there is no password "
+                "in .env, so this cannot sign back in on its own.\n"
+                "Sign in once in a browser window:\n"
+                "    .venv/bin/python -m src.omnivox_sync --login\n"
+                "To let it sign back in unattended from now on, add the "
+                "password with `make setup-omnivox`."
+            )
 
         user_field = _first_visible(self.page, _USER_FIELDS)
         pass_field = _first_visible(self.page, _PASS_FIELDS)
@@ -548,14 +559,19 @@ class OmnivoxSession:
             self.log.info("Already logged in; this profile is already trusted.")
             return
 
-        user_field = _first_visible(self.page, _USER_FIELDS)
-        pass_field = _first_visible(self.page, _PASS_FIELDS)
-        if user_field is not None and pass_field is not None:
-            user_field.fill(user)
-            pass_field.fill(password)
-            submit = _first_visible(self.page, _SUBMIT)
-            if submit is not None:
-                submit.click()
+        # Pre-fill only if there is something to pre-fill. With no .env the
+        # user types both fields themselves in the window that just opened,
+        # which is the normal first-time path and the whole point of it: no
+        # file to edit, and nothing types their password but them.
+        if user and password:
+            user_field = _first_visible(self.page, _USER_FIELDS)
+            pass_field = _first_visible(self.page, _PASS_FIELDS)
+            if user_field is not None and pass_field is not None:
+                user_field.fill(user)
+                pass_field.fill(password)
+                submit = _first_visible(self.page, _SUBMIT)
+                if submit is not None:
+                    submit.click()
 
         deadline = time.monotonic() + timeout_s
         warned = False

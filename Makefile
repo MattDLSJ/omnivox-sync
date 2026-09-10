@@ -1,6 +1,6 @@
 PY := $(CURDIR)/.venv/bin/python
 
-.PHONY: books button capture-ip capture-location check-private discover doctor dry-run fetch-vad ics install-hooks install-launchd install-live install-manual install-recorder install-retry login mic-test mirror public-snapshot publish record-now recorder-status setup-cheneliere setup-gemini setup-ics setup-mic setup-omnivox shortcuts sound-check sync test test-unit uninstall-launchd uninstall-live uninstall-manual uninstall-recorder uninstall-retry update upload venv
+.PHONY: books button capture-ip capture-location check-private discover doctor dry-run fetch-vad field-notes find-portal ics install-hooks install-launchd install-live install-manual install-recorder install-retry invite login mic-test mirror public-snapshot publish record-now recorder-status report send-report setup-cheneliere setup-gemini setup-ics setup-mic setup-omnivox shortcuts sound-check sync test test-unit uninstall-launchd uninstall-live uninstall-manual uninstall-recorder uninstall-retry update upload venv
 
 venv:
 	python3 -m venv .venv
@@ -77,8 +77,41 @@ update:
 	  exit 1; }
 	$(PY) -m pip install -q -r requirements.txt
 	@$(PY) -m pytest -m "not live" || \
-	  echo "Tests fail after updating. Report that rather than working around it."
-	@echo "Up to date. See CHANGELOG.md for what changed."
+	  echo "Tests fail after updating. That is worth reporting: make report"
+	@$(PY) scripts/whats_new.py
+
+# One public link to hand somebody, holding INSTALL.md and nothing else. The
+# repository stays private; only the instructions are public, and they give
+# nothing away because getting the code still needs access. Creates the gist
+# the first time, updates it every time after, and the link never changes.
+#   make invite          create or update
+#   make invite NEW=1    start a new gist, if the old one was deleted
+invite:
+	@$(PY) scripts/invite.py $(if $(NEW),--new)
+
+# Which <something>.omnivox.ca belongs to your college? Asks for the name in
+# plain words and then VERIFIES the answer against the live site, so a wrong
+# guess cannot be mistaken for a right one. Falls back to telling you to read
+# your address bar, which is always correct and never fails.
+find-portal:
+	@$(PY) -m src.portal_finder
+
+# Your copy hits things this one never will: another college's portal, another
+# operating system, another language. A fix that stays on your laptop helps
+# one person, so this is the road back.
+#   make report          write it up; most of it fills itself in
+#   make report FORCE=1  throw away the one you started and begin again
+#   make send-report     check it for YOUR private data, then open an issue
+report:
+	@$(PY) scripts/field_report.py $(if $(FORCE),--force) $(if $(NOTESTS),--no-tests)
+
+send-report:
+	@$(PY) scripts/field_report.py --send $(if $(DRY),--dry-run)
+
+# The other side of `make report`: everything anyone has sent, in one file,
+# ready to hand to an AI along with "work out what of this belongs upstream".
+field-notes:
+	@$(PY) scripts/field_report.py --collect
 
 dry-run:
 	$(PY) -m src.omnivox_sync --dry-run

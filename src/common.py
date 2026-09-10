@@ -119,6 +119,12 @@ class Config:
     semester_end: str = ""     # ISO date of the LAST regular class day
     no_class_days: tuple[str, ...] = ()  # ISO dates with no regular classes
     finder: FinderConfig = FinderConfig()
+    # Fast-forward to the latest release at the start of each scheduled sync.
+    # On by default: the whole failure mode is somebody setting this up in
+    # September, never thinking about it again, and therefore never seeing a
+    # fix. It refuses to touch a tree with local changes, so it cannot eat
+    # anybody's work. Set `update: auto: false` to turn it off.
+    auto_update: bool = True
     digest_folder: str = ""  # subfolder of base_path for _digest.md; "" = base_path
     # Relative: a subfolder of each course folder. Absolute (or ~-prefixed): a
     # root of its own, with the course folder under it. Use an absolute path to
@@ -331,6 +337,7 @@ def load_config(config_path: Path, *, repo_root: Path | None = None) -> Config:
         semester_end=str(raw.get("semester_end", "") or ""),
         no_class_days=tuple(str(d) for d in (raw.get("no_class_days") or [])),
         finder=finder_cfg,
+        auto_update=bool((raw.get("update") or {}).get("auto", True)),
         digest_folder=digest_folder,
         recordings_folder=str(raw.get("recordings_folder", "Voice") or "Voice"),
         books_folder=str(raw.get("books_folder", "3_Livres") or "3_Livres"),
@@ -393,10 +400,24 @@ def env_value(repo_root: Path, key: str) -> str:
     return (dotenv_values(env_path).get(key) or "").strip()
 
 
-def load_credentials(repo_root: Path) -> tuple[str, str]:
-    """Read OMNIVOX_USER / OMNIVOX_PASS from repo_root/.env."""
+def load_credentials(repo_root: Path, *, required: bool = True) -> tuple[str, str]:
+    """Read OMNIVOX_USER / OMNIVOX_PASS from repo_root/.env.
+
+    They are OPTIONAL, and `required=False` returns empty strings rather than
+    raising. Signing in by hand once, in the browser `make login` opens, stores
+    a session that every later run reuses, and that path never touches a
+    password. Which is the setup worth having: it is one screen instead of a
+    file to edit, and the six-digit identity check happens in the same sitting.
+
+    What the password buys, and the only thing it buys, is UNATTENDED
+    re-login. Session cookies expire long before the trusted-device cookie
+    does, and with a password on disk the scheduled run signs back in by
+    itself instead of going quiet until somebody notices.
+    """
     env_path = Path(repo_root) / ".env"
     if not env_path.exists():
+        if not required:
+            return "", ""
         raise ConfigError(
             f"No .env at {env_path}. Copy .env.example to .env and fill in "
             "OMNIVOX_USER and OMNIVOX_PASS."
@@ -405,7 +426,7 @@ def load_credentials(repo_root: Path) -> tuple[str, str]:
     creds = []
     for key in ("OMNIVOX_USER", "OMNIVOX_PASS"):
         value = (values.get(key) or "").strip()
-        if not value:
+        if not value and required:
             raise ConfigError(f"{key} is missing or empty in {env_path}")
         creds.append(value)
     return creds[0], creds[1]

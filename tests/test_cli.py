@@ -513,3 +513,58 @@ def test_the_attention_file_deletes_itself_once_fixed(write_config, tmp_repo):
     assert (cfg.digest_dir() / ATTENTION_FILE).exists()
     clear_login_block(cfg)
     assert not (cfg.digest_dir() / ATTENTION_FILE).exists()
+
+
+def test_doctor_flags_a_zip_download(tmp_repo, write_config):
+    """Three people set this up from a ZIP before anyone noticed.
+
+    Nothing about a ZIP install looks wrong. It runs, it syncs, and it is
+    frozen at the day it was downloaded, because `git pull` has nothing to
+    pull into and `make report` has nothing to diff against. The only place
+    that can say so is the command whose whole job is "is this working".
+    """
+    import shutil
+
+    from src.omnivox_sync import main as sync_main
+
+    (tmp_repo / ".env").write_text("OMNIVOX_USER=x\nOMNIVOX_PASS=y\n", encoding="utf-8")
+    (tmp_repo / "state" / "omnivox-profile").mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    (tmp_repo / "logs" / "omnivox_sync.log").write_text(
+        f"{stamp},000 INFO    Sync finished: 0 downloaded\n", encoding="utf-8"
+    )
+    config = write_config()
+
+    assert sync_main(["--config", str(config), "--doctor"]) == 0
+
+    shutil.rmtree(tmp_repo / ".git")
+    assert sync_main(["--config", str(config), "--doctor"]) == 1
+
+
+def test_doctor_accepts_a_browser_session_with_no_password_on_disk(
+    tmp_repo, write_config
+):
+    """Signing in by hand is the recommended setup, not a half-finished one.
+
+    Reporting "No .env" as a problem sent people off to edit a file when they
+    had already done the easier thing that works.
+    """
+    from src.omnivox_sync import main as sync_main
+
+    (tmp_repo / "state" / "omnivox-profile").mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    (tmp_repo / "logs" / "omnivox_sync.log").write_text(
+        f"{stamp},000 INFO    Sync finished: 0 downloaded\n", encoding="utf-8"
+    )
+    assert sync_main(["--config", str(write_config()), "--doctor"]) == 0
+
+
+def test_doctor_objects_when_nothing_at_all_can_sign_in(tmp_repo, write_config):
+    """No session and no credentials is the one case that really is broken."""
+    from src.omnivox_sync import main as sync_main
+
+    stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    (tmp_repo / "logs" / "omnivox_sync.log").write_text(
+        f"{stamp},000 INFO    Sync finished: 0 downloaded\n", encoding="utf-8"
+    )
+    assert sync_main(["--config", str(write_config()), "--doctor"]) == 1

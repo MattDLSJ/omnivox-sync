@@ -45,9 +45,16 @@ def sample_config_dict(tmp_path):
 
 @pytest.fixture
 def tmp_repo(tmp_path):
-    """A repo-shaped temp dir with state/ and logs/."""
+    """A repo-shaped temp dir with state/, logs/ and a .git.
+
+    The .git is not decoration. A copy that was downloaded as a ZIP rather
+    than cloned cannot pull a fix and cannot report one, so `make doctor`
+    calls that out, and a fixture without it is a ZIP install as far as the
+    code is concerned.
+    """
     (tmp_path / "state").mkdir()
     (tmp_path / "logs").mkdir()
+    (tmp_path / ".git").mkdir()
     return tmp_path
 
 
