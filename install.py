@@ -24,10 +24,12 @@ by starting over. It runs on stock Python and needs nothing installed first.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -363,6 +365,96 @@ def ensure_credentials() -> None:
         run([str(VENV_PYTHON), str(ROOT / "scripts" / "set_env.py"), key])
 
 
+#: Windows CREATE_NEW_CONSOLE. Spelled out rather than read off subprocess,
+#: because getattr(subprocess, "CREATE_NEW_CONSOLE", 0) falls back to 0 and 0
+#: means "inherit the parent's console", which is precisely the bug this exists
+#: to avoid. A silent fallback to the broken behaviour is worse than an
+#: AttributeError, and worse still is that it only shows up on somebody else's
+#: machine.
+CREATE_NEW_CONSOLE = 0x00000010
+
+
+def _visible_window(args: list[str], *, what: str, timeout_s: int = 900) -> int | None:
+    """Run `args` in a window the person can actually see. None if it cannot.
+
+    An AI agent runs commands inside its own process, and that process is not
+    a desktop session. Two things follow, both seen on real installs. A
+    browser launched from it either appears somewhere the user never sees or,
+    on Windows, fails outright: Playwright's driver reported `spawn UNKNOWN`,
+    which is Node saying the process could not be created in that environment
+    at all. And the installer's answer was to stop and print "open PowerShell
+    yourself and run this", which is three steps and a context switch for
+    somebody who asked an agent precisely so they would not have to.
+
+    So the sign-in gets its own console, started by the OS rather than
+    inherited from whatever is driving us. On Windows that is CREATE_NEW_CONSOLE;
+    on macOS it is a Terminal window. Both put a real window in front of the
+    person with no instructions to follow, and both let this process wait and
+    then carry on by itself.
+    """
+    marker = ROOT / "state" / "handover.exit"
+    marker.unlink(missing_ok=True)
+    marker.parent.mkdir(parents=True, exist_ok=True)
+
+    if IS_WINDOWS:
+        try:
+            proc = subprocess.Popen(
+                args,
+                cwd=str(ROOT),
+                creationflags=CREATE_NEW_CONSOLE,
+            )
+        except Exception as exc:  # noqa: BLE001
+            warn(f"could not open a window for {what}: {exc}")
+            return None
+        print(f"    A new window has opened for {what}. Do it there.")
+        print("    This one waits, and carries on by itself when you are done.\n")
+        try:
+            return proc.wait(timeout=timeout_s)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            return None
+
+    if sys.platform == "darwin":
+        import shlex
+        import stat as _stat
+
+        # `open` a .command file rather than telling Terminal to `do script`.
+        # The AppleScript route needs Automation permission, and asking for it
+        # puts up a system dialog that blocks: measured here, osascript sat
+        # for the full 30 second timeout on a Mac that had never granted it,
+        # then failed. `open` needs no permission and starts Terminal itself
+        # if it is not running.
+        inner = " ".join(shlex.quote(a) for a in args)
+        launcher = ROOT / "state" / "handover.command"
+        launcher.write_text(
+            "#!/bin/sh\n"
+            f"cd {shlex.quote(str(ROOT))} || exit 1\n"
+            f"{inner}\n"
+            f"echo $? > {shlex.quote(str(marker))}\n",
+            encoding="utf-8",
+        )
+        launcher.chmod(launcher.stat().st_mode | _stat.S_IXUSR | _stat.S_IXGRP)
+        try:
+            subprocess.run(["open", "-a", "Terminal", str(launcher)],
+                           check=True, timeout=30)
+        except Exception as exc:  # noqa: BLE001
+            warn(f"could not open a window for {what}: {exc}")
+            return None
+        print(f"    A Terminal window has opened for {what}. Do it there.")
+        print("    This one waits, and carries on by itself when you are done.\n")
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            if marker.exists():
+                try:
+                    return int(marker.read_text(encoding="utf-8").strip() or "1")
+                except ValueError:
+                    return 1
+            time.sleep(1)
+        return None
+
+    return None
+
+
 def sign_in() -> None:
     step("Signing in to Omnivox")
     print("    A browser window is about to open. Type your student number and")
@@ -605,7 +697,30 @@ def main(argv: list[str]) -> int:
         return NEEDS_A_PERSON
 
     if not person:
-        return _hand_over("signing in to Omnivox")
+        # Not a hand-over any more, unless the window will not open. The
+        # sign-in needs a desktop, this process does not have one, and the
+        # answer is to ask the OS for a window rather than to ask the person
+        # to go and make one.
+        step("Signing in to Omnivox")
+        print("    A browser opens for you to sign in. TICK")
+        print("    \u00abJ'utilise un appareil de confiance\u00bb if it asks for a code,")
+        print("    or it stops working tomorrow.\n")
+        code = _visible_window(
+            [str(VENV_PYTHON), "-m", "src.omnivox_sync", "--login"],
+            what="the Omnivox sign-in",
+        )
+        if code is None:
+            return _hand_over("signing in to Omnivox")
+        if code != 0:
+            warn("the sign-in window closed without finishing.")
+            return _hand_over("signing in to Omnivox")
+        ok("signed in")
+        ensure_credentials()
+        first_sync()
+        organize_existing()
+        schedule_it()
+        finish()
+        return 0
 
     sign_in()
     ensure_credentials()
