@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v37 (2026-09-11)
+
+The calendar step no longer assumes Google. Microsoft, Apple or anything else works the same way, and a cegep Outlook address makes Microsoft at least as likely for a student. The file it writes as a fallback imports into all of them.
+
 ## v36 (2026-09-11)
 
 Setting up no longer assumes your AI has a calendar tool. Several do not and cannot add one. It uses one if it is there, and otherwise writes a file you import into any calendar once, rather than stopping to tell you to go and install something.
