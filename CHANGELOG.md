@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v34 (2026-09-11)
+
+Windows now gets the buttons macOS always had, beside your course folders: one to sync and one to sign in. The sign-in one matters more than it sounds. Windows hides windows opened by background processes, so a sign-in started any other way can open a browser you cannot see, which looks exactly like the program hanging. Double-clicking the file avoids that, and the file says so.
+
 ## v33 (2026-09-11)
 
 Setting up now finds the course files already on your machine and files them into the right course, which the settings page had been offering while nothing behind it did anything. A file moves only when its name says which course it belongs to; nothing is deleted, nothing is overwritten, and anything ambiguous is reported and left where it is.
