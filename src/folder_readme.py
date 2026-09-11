@@ -27,8 +27,45 @@ from pathlib import Path
 NAME = "0_README.md"
 
 
+#: Quebec cégep course codes begin with a discipline number, and 109 is
+#: éducation physique. Every student takes three of them, none is a lecture,
+#: and a microphone in a gym records a ball.
+_NOT_A_LECTURE_PREFIX = ("109",)
+_NOT_A_LECTURE_WORDS = (
+    "basketball", "volleyball", "badminton", "natation", "soccer", "hockey",
+    "conditionnement", "activite physique", "activité physique",
+    "education physique", "éducation physique", "plein air", "musculation",
+    "yoga", "danse", "stage", "laboratoire",
+)
+
+
+def worth_recording(course) -> bool:
+    """Is this a course where a recording would contain anything?
+
+    Recording everything is the obvious default and the wrong one. A gym class
+    produces forty minutes of a bouncing ball, transcribed into a notebook
+    beside the philosophy lectures, and whoever set it up learns not to trust
+    the notebook.
+    """
+    code = str(getattr(course, "code", "") or "")
+    if code.split("-")[0] in _NOT_A_LECTURE_PREFIX:
+        return False
+    haystack = f"{getattr(course, 'folder', '')} {getattr(course, 'omnivox_name', '')}".lower()
+    return not any(word in haystack for word in _NOT_A_LECTURE_WORDS)
+
+
 def course_readme(cfg, course, repo_root: Path) -> str:
     """The note for one course folder."""
+    recording = (
+        "This looks like a lecture course, so recording it would capture "
+        "something worth having. It is off until it is switched on per course "
+        "in `config.yaml`."
+        if worth_recording(course)
+        else "**Do not record this one.** It is not a lecture course, so a "
+        "recording is forty minutes of room noise transcribed into the notebook "
+        "beside your real classes, which is how you learn to distrust the "
+        "notebook. Leave `record: false` for it."
+    )
     who = f", taught by {course.teacher}" if getattr(course, "teacher", "") else ""
     group = f" (group {course.group})" if getattr(course, "group", "") else ""
     return f"""# {course.folder}
@@ -87,6 +124,10 @@ make doctor        # is the automation actually working?
 A document posted in the last few hours may simply not have been fetched yet.
 Check `make doctor` before concluding anything is broken.
 
+## Recording this course
+
+{recording}
+
 ## What is NOT here, and will not be
 
 - **Lecture recordings and transcripts**, unless recording was switched on for
@@ -96,7 +137,7 @@ Check `make doctor` before concluding anything is broken.
   better than reconstructing it and presenting the result as the source.
 
 *This file is rewritten on every sync. Editing it will not last.*
-"""
+""".replace("{recording}", recording)
 
 
 def root_readme(cfg, repo_root: Path) -> str:

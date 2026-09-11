@@ -80,3 +80,55 @@ def test_it_is_rewritten_rather_than_appended(loaded_config):
     path.write_text("something a person typed", encoding="utf-8")
     write_readmes(loaded_config, logger=None)
     assert "something a person typed" not in path.read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Which courses are worth recording
+#
+# Recording everything is the obvious default and the wrong one. A gym class
+# produces forty minutes of a bouncing ball, transcribed into a notebook beside
+# the philosophy lectures, and whoever set it up learns not to trust the
+# notebook.
+# ---------------------------------------------------------------------------
+
+
+class _Course:
+    def __init__(self, code, folder, omnivox_name="", teacher="", group=""):
+        self.code, self.folder = code, folder
+        self.omnivox_name = omnivox_name or folder
+        self.teacher, self.group = teacher, group
+
+
+def test_a_physical_education_course_is_not_worth_recording():
+    """109 is éducation physique at every Quebec cégep, every student takes
+    three, and none of them is a lecture."""
+    from src.folder_readme import worth_recording
+
+    assert worth_recording(_Course("109-321-EM", "Basketball")) is False
+    assert worth_recording(_Course("109-101-MQ", "Activité physique")) is False
+
+
+def test_a_lecture_course_is():
+    from src.folder_readme import worth_recording
+
+    assert worth_recording(_Course("340-101-MQ", "Philosophie et rationalité"))
+    assert worth_recording(_Course("601-102-MQ", "Littérature et imaginaire"))
+
+
+def test_the_name_is_enough_even_when_the_code_is_not():
+    """Not every college numbers its disciplines the same way."""
+    from src.folder_readme import worth_recording
+
+    assert worth_recording(_Course("999-111-XX", "Natation avancée")) is False
+
+
+def test_the_note_tells_the_reader_which_one_this_is(loaded_config):
+    from src.folder_readme import course_readme
+
+    gym = _Course("109-321-EM", "Basketball")
+    assert "Do not record this one" in course_readme(loaded_config, gym, Path("/x"))
+
+    lecture = _Course("340-101-MQ", "Philosophie")
+    assert "Do not record this one" not in course_readme(
+        loaded_config, lecture, Path("/x")
+    )

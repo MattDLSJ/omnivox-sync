@@ -921,6 +921,19 @@ def sync(
     # in chain_downstream because the driver only exists inside this function,
     # and an earlier version read it off the result object, where it does not
     # exist: the step would have silently never run.
+    # The college's own documents: policies, guides, forms. They belong to no
+    # course, so they go beside them rather than into one.
+    if hasattr(driver, "list_portal_documents"):
+        try:
+            from src.portal_docs import sync_portal_documents
+
+            got = sync_portal_documents(cfg, driver, dry_run=dry_run, logger=log)
+            if got:
+                log.info("College documents: %d new", len(got))
+        except Exception as exc:  # noqa: BLE001 - never at the cost of courses
+            log.warning("College document step failed: %s", exc)
+            result.errors.append({"scope": "portal_docs", "error": str(exc)})
+
     if hasattr(driver, "list_mio"):
         try:
             from src.mio import sync_mio

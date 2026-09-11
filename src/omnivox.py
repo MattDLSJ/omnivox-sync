@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import re
+import urllib.parse
 import time
 import unicodedata
 from dataclasses import dataclass
@@ -1143,6 +1144,99 @@ class OmnivoxSession:
                 }
             )
         return items
+
+    #: Institutional documents live in "communautés", which are portal pages at
+    #: /intr/<name>/ with a "Documents et fichiers" section. They are not in
+    #: LÉA, which is why nothing that walks courses has ever seen one, and why
+    #: the folder for everything-not-a-course stayed empty all semester.
+    _COMMUNITY = re.compile(r"^/intr/[A-Za-z0-9_\-]+/$")
+    _PORTAL_DOC = re.compile(r"\.(pdf|docx?|pptx?|xlsx?|odt|odp|ods)(\?|$)", re.I)
+
+    def list_portal_documents(self, limit: int = 60) -> list[dict]:
+        """Documents from the portal's communities: policies, guides, forms.
+
+        Everything here belongs to the college rather than to a course, so it
+        has no course folder to go to. Read-only and deliberately bounded: a
+        portal can carry a lot of these and none of them is urgent.
+        """
+        self._home()
+        communities = self.page.evaluate(
+            r"""() => {
+          const out = new Set();
+          for (const a of document.querySelectorAll('a')) {
+            const h = a.getAttribute('href') || '';
+            if (/^\/intr\/[A-Za-z0-9_\-]+\/$/.test(h)) out.add(h);
+          }
+          return [...out];
+        }"""
+        )
+        found: list[dict] = []
+        seen: set[str] = set()
+        for path in communities[:8]:
+            try:
+                self.page.goto(self.portal.home + path, wait_until="domcontentloaded")
+                self.page.wait_for_timeout(3000)
+                rows = self.page.evaluate(
+                    r"""() => {
+                  const clean = e => (e.textContent||'').replace(/\s+/g,' ').trim();
+                  const out = [];
+                  for (const a of document.querySelectorAll('a')) {
+                    const h = a.getAttribute('href') || '';
+                    if (!/\.(pdf|docx?|pptx?|xlsx?|odt|odp|ods)(\?|$)/i.test(h)) continue;
+                    out.push({title: clean(a).slice(0,120), href: h});
+                  }
+                  return out;
+                }"""
+                )
+            except Exception as exc:  # noqa: BLE001 - one community, not the run
+                self.log.warning("Could not read %s: %s", path, exc)
+                continue
+            for row in rows:
+                href = row.get("href") or ""
+                if not href or href in seen:
+                    continue
+                seen.add(href)
+                # Most of these anchors are icons with no text, so the
+                # filename in the href is the only name there is.
+                title = (row.get("title") or "").strip()
+                if not title or len(title) > 110:
+                    title = urllib.parse.unquote(
+                        href.split("?")[0].rstrip("/").split("/")[-1]
+                    )
+                found.append({
+                    "title": title,
+                    "ref": href,
+                    "community": path.strip("/").split("/")[-1],
+                })
+                if len(found) >= limit:
+                    return found
+        return found
+
+    def fetch_portal_document(self, ref: str, dest: Path, referer: str = "") -> Path:
+        """Pull one college document through the authenticated context.
+
+        A Referer is sent because every other fetch in this project sends one
+        and some Omnivox endpoints do check it. It is NOT the explanation for
+        the 403s seen here: tested both ways against a real account, those
+        documents answer 403 with and without it. They are documents that
+        account is not allowed to have, which is a permission on the college's
+        side and not something to work around.
+        """
+        url = ref if ref.startswith("http") else self._absolute(ref)
+        headers = {"referer": referer} if referer else {}
+        response = self._context.request.get(
+            url, headers=headers, timeout=DEFAULT_TIMEOUT_MS
+        )
+        if not response.ok:
+            raise OmnivoxError(f"HTTP {response.status} fetching {dest.name}")
+        body = response.body()
+        head = body[:15].lstrip().lower()
+        if head.startswith(b"<!doctype html") or head.startswith(b"<html"):
+            raise OmnivoxError(f"{dest.name} came back as a web page, not a file")
+        dest = Path(dest)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(body)
+        return dest
 
     def list_communiques(self) -> dict[str, list[dict]]:
         """Every course's communiqués, keyed by course code.
