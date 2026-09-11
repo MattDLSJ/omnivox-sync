@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v39 (2026-09-11)
+
+The link to send somebody now points at INSTALL.md rather than at the repository. Given a repository link, some agents ask what you want done with it and wait, because a repository does not say what it is for. A link to a document is unambiguous, and that document is a page of instructions written for an agent.
+
 ## v38 (2026-09-11)
 
 What you send somebody is now a sentence plus the link rather than the link alone. Some agents fetch a bare URL and get to work; others treat it as something you have merely shown them and wait to be told what for, which looks like the project is broken when it is not.

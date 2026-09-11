@@ -4,10 +4,11 @@
 link to it, and it has everything it needs to get from nothing to a working
 install.
 
-If you are the person sending it, send a sentence with the link rather than the
-link alone: *"Set this up for me. Clone it and follow INSTALL.md at the
-repository root."* Some agents fetch a bare URL and begin; others treat it as
-something you have shown them and wait to be told what for. It is deliberately short; the long brief is `START-HERE.md`, inside
+If you are the person sending it, send the link to THIS FILE rather than to the
+repository. Tested on two agents: a repository link made one of them ask what
+you wanted done with it and wait, because a repository does not say what it is
+for, while a link to a document is unambiguous and this document is a page of
+instructions addressed to an agent. It is deliberately short; the long brief is `START-HERE.md`, inside
 the repository, and you read that once you have the repository.
 
 ---
