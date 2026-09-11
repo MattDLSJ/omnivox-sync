@@ -1208,6 +1208,21 @@ def tick(cfg: Config, *, now: datetime | None = None, logger=None) -> str:
     log = logger or logging.getLogger("school.recorder")
     now = now or datetime.now()
 
+    # Capture is `ffmpeg -f avfoundation`, and the process that owns it is a
+    # launchd job, because macOS blames the responsible process for microphone
+    # access. Neither exists elsewhere. Nothing in this file used to check,
+    # and the setup page's claim that recording "stays inert everywhere else"
+    # was enforced by nothing at all: on Windows, launchctl raises
+    # FileNotFoundError, which is not MicAppError, so it escaped into the
+    # generic handler and reported "Recorder failed" once a minute, forever.
+    #
+    # That was invisible while Windows notifications were themselves broken.
+    # They work now, so the same bug would put a toast on somebody's screen
+    # every sixty seconds. Refusing quietly, once, is the whole fix.
+    if sys.platform != "darwin":
+        log.info("Recorder is macOS only for now; nothing to do on %s.", sys.platform)
+        return "inert"
+
     entries = recordable(cfg, parse_schedule(cfg.schedule))
     if not entries:
         return "inert"  # schedule empty or no course opted in

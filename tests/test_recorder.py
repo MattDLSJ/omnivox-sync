@@ -1744,3 +1744,23 @@ def test_a_silent_lecture_still_speaks_up(
     assert "Enregistrement muet" in source
     i = source.index("Enregistrement muet")
     assert "critical=True" in source[i:i + 400], "the silent-lecture alarm went quiet too"
+
+
+def test_the_recorder_refuses_once_instead_of_failing_every_minute(monkeypatch, tmp_path):
+    """Nothing in recorder.py checked the platform, and the setup page's claim
+    that recording "stays inert everywhere else" was enforced by nothing. On
+    Windows, launchctl raises FileNotFoundError, which is not MicAppError, so
+    it escaped into the generic handler and reported "Recorder failed" once a
+    minute forever. That was invisible while Windows notifications were also
+    broken; they work now, so it would put a toast on screen every 60 seconds."""
+    import src.recorder as rec
+
+    calls = []
+    monkeypatch.setattr(rec.sys, "platform", "win32")
+    monkeypatch.setattr(rec, "recordable", lambda *a, **k: calls.append("looked") or [])
+
+    class _Cfg:
+        schedule = []
+
+    assert rec.tick(_Cfg()) == "inert"
+    assert calls == [], "it must refuse before touching the schedule or launchd"

@@ -358,8 +358,13 @@ def ensure_credentials() -> None:
     print("    scheduled run signs in from scratch every time and needs these.")
     print("    They go straight into .env on this machine. Nothing prints them.\n")
     if not sys.stdin.isatty():
-        warn("not a terminal, so this cannot ask. Later, run:")
-        warn("    make setup-omnivox")
+        # Reachable only when the settings page was skipped or its boxes left
+        # empty, since that page now takes the sign-in and this returns early
+        # once it has. Which is the point of moving it there: a terminal
+        # prompt is a step an agent-driven install cannot perform at all.
+        warn("not a terminal, so this cannot ask here. Either of these works:")
+        warn("    make settings      (a page, with a box for it)")
+        warn("    make setup-omnivox (a terminal prompt)")
         return
     for key in ("OMNIVOX_USER", "OMNIVOX_PASS"):
         run([str(VENV_PYTHON), str(ROOT / "scripts" / "set_env.py"), key])
