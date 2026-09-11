@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v40 (2026-09-11)
+
+INSTALL.md now opens by saying what the project is and what it is not: Python, one requirement, nothing to compile. An agent that had announced it reviewed the guide went looking for Rust, CMake and Emacs installers, none of which appear anywhere here.
+
 ## v39 (2026-09-11)
 
 The link to send somebody now points at INSTALL.md rather than at the repository. Given a repository link, some agents ask what you want done with it and wait, because a repository does not say what it is for. A link to a document is unambiguous, and that document is a page of instructions written for an agent.

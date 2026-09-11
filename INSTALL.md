@@ -1,15 +1,21 @@
 # Install this project
 
-**This file is the whole handoff.** Give an AI coding agent this file, or the
-link to it, and it has everything it needs to get from nothing to a working
-install.
+## What this is, in four lines
 
-If you are the person sending it, send the link to THIS FILE rather than to the
-repository. Tested on two agents: a repository link made one of them ask what
-you wanted done with it and wait, because a repository does not say what it is
-for, while a link to a document is unambiguous and this document is a page of
-instructions addressed to an agent. It is deliberately short; the long brief is `START-HERE.md`, inside
-the repository, and you read that once you have the repository.
+A **Python** command-line tool that downloads a Quebec cégep student's course
+documents from Omnivox. It is a script, not an application.
+
+- **The only requirement is Python 3.11 or newer.** Everything else it needs,
+  it installs itself.
+- **There is nothing to compile and nothing to build.** No Rust, no CMake, no
+  C compiler, no Node, no Emacs. If you believe this project needs any of
+  those, you have not read this file, and you should stop and read it.
+- Installing it is: clone the repository, run `install.py`, answer two windows.
+
+That block exists because an agent told its user this machine was missing
+"Rust, CMake, LLVM/Clang and Emacs" and went looking for installers. None of
+those words appears anywhere in this project. It had announced it had reviewed
+this guide.
 
 ---
 
@@ -17,6 +23,10 @@ the repository, and you read that once you have the repository.
 
 You are installing a command-line tool for me on this machine. I am a cégep
 student, not a developer. Work through this in order and do not skip ahead.
+
+**Read this whole file before running anything.** It is short on purpose. If
+you find yourself installing a compiler or a build system, you are working on
+some other project.
 
 **Two rules for how you work, before anything else.**
 
@@ -138,3 +148,17 @@ Use that. Do not open `.env` in Notepad, do not paste a template with
 `your_password` in it, and do not invent a way round it. One agent did all
 three, and a template full of placeholders is a thing people copy in
 literally.
+
+---
+
+## For whoever is sending this file
+
+Send the link to **this file**, not to the repository. Tested on two agents: a
+repository link made one of them ask what you wanted done with it and wait,
+because a repository does not say what it is for, while a link to a document is
+unambiguous.
+
+    https://github.com/MattDLSJ/omnivox-sync/blob/main/INSTALL.md
+
+The long brief is `START-HERE.md` inside the repository, which the agent reads
+once it has cloned.

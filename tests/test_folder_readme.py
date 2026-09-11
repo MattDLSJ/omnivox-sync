@@ -159,3 +159,28 @@ def test_the_front_page_points_at_the_file_not_the_repository():
     top = readme[:1800]
     assert "blob/main/INSTALL.md" in top
     assert "not at the repository" in top
+
+
+def test_install_states_what_it_does_not_need_before_anything_else():
+    """An agent announced it had reviewed this guide, then told its user the
+    machine was missing "Rust, CMake, LLVM/Clang and Emacs" and went looking
+    for installers. None of those words appears anywhere in this project. The
+    defence against a model that skims is to put what it is, and what it is
+    not, in the first thing it reads."""
+    from pathlib import Path as _Path
+
+    body = _Path("INSTALL.md").read_text(encoding="utf-8")
+    top = body[:1100]
+    assert "Python 3.11" in top, "the one real requirement must be in the first screen"
+    assert "nothing to compile" in top
+    for invented in ("Rust", "CMake", "Emacs"):
+        assert invented in top, f"name {invented} explicitly; a model filled it in"
+
+
+def test_the_agents_instructions_come_before_the_senders_note():
+    """The note about which link to send is addressed to a person, and it was
+    sitting above the instructions in a file an agent reads top down."""
+    from pathlib import Path as _Path
+
+    body = _Path("INSTALL.md").read_text(encoding="utf-8")
+    assert body.index("## Prompt") < body.index("For whoever is sending this file")
