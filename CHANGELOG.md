@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v36 (2026-09-11)
+
+Setting up no longer assumes your AI has a calendar tool. Several do not and cannot add one. It uses one if it is there, and otherwise writes a file you import into any calendar once, rather than stopping to tell you to go and install something.
+
 ## v35 (2026-09-11)
 
 The college's own documents, the policies and guides that belong to no course, are now downloaded beside your course folders. Setup also prefers your agent's calendar connector over the old import-a-file route, tells you which account it is about to write to before it writes anything, and knows that a gym class is not worth recording.

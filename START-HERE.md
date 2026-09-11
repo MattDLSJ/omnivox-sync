@@ -353,8 +353,19 @@ them.
   **Before you write anything, tell me which account you are connected to**,
   by name. A calendar written into the wrong Google account is invisible to me
   and confusing to find, and it is the kind of mistake nobody notices for a
-  week. If you have no calendar connector, say so plainly and tell me it is
-  worth adding, rather than falling back to the file.
+  week.
+
+  **If you have no calendar tool, say so and then use the file.** Not every
+  agent has one and several have no way to add one, so this is an ordinary
+  outcome rather than a problem to solve:
+
+      make ics
+
+  writes a file I import into any calendar once, with every class, room,
+  teacher and block already in it. It is one import and then it is done. Tell
+  me where the file is and how to import it, mention that a connector would
+  let me ask you to move a deadline later, and move on. Do not stall on this
+  and do not tell me to go and install something before you will continue.
 
 - **Say which account everything else is on, too.** NotebookLM in particular:
   tell me which Google account the `nlm` tool is signed in as before the first
