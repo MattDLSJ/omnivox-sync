@@ -59,6 +59,23 @@ UNIX_SYNC = """#!/bin/sh
 cd "{repo}" || exit 1
 echo "Checking Omnivox for anything new..."
 "{python}" -m src.omnivox_sync
+echo
+# Terminal profiles set to close on a clean exit take the report with them,
+# which is the whole reason somebody double-clicked this. The Windows
+# launchers have always ended with `pause`; this is the same thing.
+printf "Done. Press return to close this window."
+read -r _
+"""
+
+UNIX_LOGIN = """#!/bin/sh
+# Sign in to Omnivox. Use this when the sync says it needs you.
+cd "{repo}" || exit 1
+echo "A browser window will open on Omnivox. Sign in there."
+echo
+"{python}" -m src.omnivox_sync --login
+echo
+printf "Done. Press return to close this window."
+read -r _
 """
 
 
@@ -81,9 +98,16 @@ def write_launchers(cfg, *, logger=None) -> list[Path]:
                 "Sign in to Omnivox.cmd": WINDOWS_LOGIN,
             }
         else:
-            # macOS already gets a real .app from make button; this is the
-            # plain-shell equivalent for anything else.
-            files = {"Sync School.command": UNIX_SYNC}
+            # Both, same as Windows. The note here used to say macOS already
+            # gets a real .app from `make button`, so a sign-in button was not
+            # needed. install.py never runs `make button`, so on a fresh Mac
+            # install there was no .app and no sign-in launcher either:
+            # Windows recovered from a revoked trusted device with a double
+            # click and macOS required knowing to type `make login`.
+            files = {
+                "Sync School.command": UNIX_SYNC,
+                "Sign in to Omnivox.command": UNIX_LOGIN,
+            }
         for name, template in files.items():
             path = base / name
             path.write_text(

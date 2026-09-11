@@ -236,12 +236,27 @@ def _patch() -> str:
 
 
 #: Where reports go when the reporter has no GitHub account, which is most of
-#: them. Set once, per checkout, with:
-#:     git config report.relay https://<your-worker>.workers.dev
-#: Empty is fine: everything below still works, it just needs more of the
-#: person.
+#: them.
+#:
+#: This used to read only `git config report.relay`, which is per-checkout
+#: local config. It was set on the maintainer's machine and on no other, so
+#: the automated route worked for exactly one person and silently degraded to
+#: "here is a link, go paste this yourself" for every tester. The whole point
+#: of the relay was that nobody clicks that link.
+#:
+#: So the endpoint is committed. A fork can still override it, and that is
+#: what the git config is now for.
+RELAY_DEFAULT = Path(__file__).resolve().parents[1] / "relay" / "ENDPOINT"
+
+
 def _relay_url() -> str:
-    return _git("config", "--get", "report.relay", check=False)
+    configured = _git("config", "--get", "report.relay", check=False)
+    if configured:
+        return configured
+    try:
+        return RELAY_DEFAULT.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
 
 
 def _send_via_relay(title: str, body: str) -> str:

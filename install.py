@@ -15,7 +15,7 @@ halfway.
 
 It stops in exactly three places, and each one is something only a person can
 supply: the name of your college, signing in to Omnivox in a browser, and the
-three questions on the settings page.
+questions on the settings page.
 
 Safe to run again. Every step checks whether it is already done and skips it,
 so an interrupted install is fixed by running this a second time rather than
@@ -191,6 +191,32 @@ def check_converters() -> None:
         warn(f"    {win if IS_WINDOWS else mac}")
 
 
+def check_notebooklm() -> None:
+    """Say out loud whether the headline feature can actually run.
+
+    NotebookLM defaults to "yes, do it automatically" on the settings page,
+    and doing it automatically needs the `nlm` CLI. Nothing installed it,
+    nothing looked for it, and the failure is silent by design: the uploader
+    falls back to copying files into _to_upload/ folders. So somebody could
+    pick the default, watch the install succeed, and get staging folders
+    forever without one line anywhere telling them why.
+
+    Reported, not installed. Installing it needs `uv`, which is another thing
+    this would be fetching on somebody's behalf without asking.
+    """
+    step("Checking NotebookLM")
+    if shutil.which("nlm"):
+        ok("nlm found")
+        return
+    warn("The `nlm` command is not installed, so NotebookLM uploads cannot run.")
+    warn("Nothing is lost: files are copied into a _to_upload folder per course")
+    warn("instead, and you can upload them by hand. To do it automatically:")
+    warn("    uv tool install git+https://github.com/jacob-bd/notebooklm-mcp-cli.git")
+    warn("    nlm login")
+    warn("(`uv` is a Python tool installer. If you do not have it either, see")
+    warn(" https://docs.astral.sh/uv/ . Or answer No to NotebookLM in `make settings`.)")
+
+
 def set_portal() -> None:
     """Fallback only. The settings page asks this now, so this runs when the
     page was closed without answering, or on a machine with no browser."""
@@ -253,7 +279,12 @@ NEEDS_A_PERSON = 3
 #: shorter when an agent is driving: if the address cannot be reached from
 #: wherever they are, half an hour of silence is a poor way to find that out.
 TIMEOUT_INTERACTIVE = 1800
-TIMEOUT_DRIVEN = 900
+# Under an agent this runs inside a tool call, and those are capped: Claude
+# Code cuts a Bash call off at 600 seconds. A 900 second wait could therefore
+# never be reached, it could only be killed partway through, losing the form
+# and everything printed with it. Shorter than the cap, so the installer is
+# the thing that decides how the wait ends.
+TIMEOUT_DRIVEN = 540
 
 
 def _page_timeout(interactive: bool) -> int:
@@ -345,14 +376,28 @@ def sign_in() -> None:
         die("the sign-in did not complete. Run the installer again to retry.")
 
 
-def _portal_is_set() -> bool:
+def _config_problem() -> str:
+    """"" when config.yaml is fine, else what is actually wrong with it.
+
+    These used to be one boolean, so a file that would not parse was reported
+    as "no college is set, run the installer again and answer the settings
+    page" — telling the student to repeat the step that had just corrupted it.
+    A parse error and an unanswered question are different problems and only
+    one of them is the person's to fix.
+    """
     import yaml
 
     try:
         loaded = yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8")) or {}
-    except Exception:  # noqa: BLE001
-        return False
-    return bool((loaded.get("school") or {}).get("portal"))
+    except Exception as exc:  # noqa: BLE001
+        return f"config.yaml is not valid YAML, so nothing can read it:\n{exc}"
+    if not (loaded.get("school") or {}).get("portal"):
+        return "no college is set yet"
+    return ""
+
+
+def _portal_is_set() -> bool:
+    return not _config_problem()
 
 
 def choose_settings(*, interactive: bool = True) -> None:
@@ -362,11 +407,23 @@ def choose_settings(*, interactive: bool = True) -> None:
     print("    reaches it.\n")
     args = [str(VENV_PYTHON), "-m", "src.setup_page",
             "--timeout", str(_page_timeout(interactive))]
-    if not interactive:
-        # Nobody is at this screen, so opening a window here does nothing
-        # useful and something actively confusing: run from a test or a script
-        # it pops tabs in whatever browser the machine happens to have. The
-        # printed address is what an agent passes on, and it is enough.
+    # The window opens whether or not somebody is typing at this terminal.
+    #
+    # It used to be suppressed for any non-tty run, on the reasoning that
+    # nobody is at that screen. That reasoning confused two different things.
+    # A test or a script has nobody at the screen. An AI agent running a
+    # command on somebody's own computer has a person sitting right there,
+    # and suppressing the window meant the page never appeared: the agent
+    # announced it had opened the setup page, nothing happened, and it then
+    # spent three rounds trying to render a local address inside its own
+    # in-app browser before finally handing over a link. Observed, on a real
+    # install, by the person it was supposed to be helping.
+    #
+    # Where there is genuinely no display the call fails harmlessly and the
+    # printed address is still the answer, so opening it is never worse.
+    # Tests and CI opt out explicitly, which is what the distinction should
+    # have been from the start.
+    if os.environ.get("SCHOOL_NO_BROWSER") == "1":
         args.append("--no-browser")
     run(args)
 
@@ -403,16 +460,33 @@ def organize_existing() -> None:
 
     step("Looking for course files already on this machine")
     print("    Downloads, Desktop and Documents. Nothing is ever deleted, and")
-    print("    a file only moves when its name says which course it belongs to.\n")
+    print("    a file only moves when its name says which course it belongs to.")
+    if sys.platform == "darwin":
+        # This is where the TCC dialog appears, and it appears with no warning
+        # in the middle of an install, which is how somebody clicks Don't
+        # Allow. Declining is then silent: the scan finds nothing and says so
+        # cheerfully, which reads as "there was nothing to find".
+        print("    macOS will ask for access to your Desktop and Documents.")
+        print("    Declining is fine, but then this step finds nothing at all.")
+    print()
     from src.organize import organize, summary
 
     try:
-        plan = organize(cfg, logger=None)
+        # Planned first, then shown, then done. It used to move the files and
+        # print the summary afterwards, while the settings page promised it
+        # "shows you what it found grouped by course, and moves them in", in
+        # that order. Nobody reading a list of files that have already been
+        # moved out of their Downloads folder experiences that as a preview.
+        plan = organize(cfg, logger=None, dry_run=True)
     except Exception as exc:  # noqa: BLE001 - never worth the rest of setup
         warn(f"could not search for existing files ({type(exc).__name__})")
         return
-    for line in summary(plan).splitlines():
+    for line in summary(plan, planned=True).splitlines():
         print(f"    {line}")
+    try:
+        organize(cfg, logger=None)
+    except Exception as exc:  # noqa: BLE001
+        warn(f"could not move the files it found ({type(exc).__name__})")
 
 
 def schedule_it() -> None:
@@ -510,6 +584,7 @@ def main(argv: list[str]) -> int:
     install_browser()
     make_config_files()
     check_converters()
+    check_notebooklm()
 
     # The settings page runs either way. It is a local web page, so what it
     # needs is a browser the PERSON can reach, not one this process can open,

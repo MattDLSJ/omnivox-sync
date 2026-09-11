@@ -9,7 +9,7 @@ on an i+ Interactif account the student pays for, and the project fetches a
 chapter at a time from it precisely because that is what fair dealing covers.
 
 Nothing in the folder said any of that, so nothing could correct it. The folder
-had a `_horaire.md` and a `_digest.md` and no answer to "what is this, and what
+had a `{cfg.schedule_file}` and a `_digest.md` and no answer to "what is this, and what
 can be done about it".
 
 Written on every sync, so it is never out of date with the courses that exist.
@@ -81,7 +81,7 @@ below runs from `{repo_root}`.*
 | | |
 |---|---|
 | `*.pdf`, `*.pptx` | Every document the teacher posted, downloaded automatically. Office files are converted to PDF and both are kept. |
-| `_horaire.md` | This course's upcoming classes and evaluations, mirrored from the calendar. Read this before answering "when is the exam". |
+| `{cfg.schedule_file}` | This course's upcoming classes and evaluations, mirrored from the calendar. Read this before answering "when is the exam". |
 | `{cfg.mio_folder}/` | Messages this teacher sent by Omnivox MIO. |
 | `{cfg.communiques_folder}/` | This teacher's announcements to the whole class. |
 | `{cfg.books_folder}/` | Textbook chapters, when they have been pulled. **Empty does not mean unavailable.** See below. |

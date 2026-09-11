@@ -106,12 +106,29 @@ this chat: a settings page asking which college I attend and which three
 features I want, and then the browser it opens for me to sign in to Omnivox.
 Everything else it does by itself.
 
-**When it opens a page, do not repeat its questions to me here.** Print the
-address it gives you and stop. Restating the options in chat invites me to
-answer in chat, and an answer typed in chat reaches nothing: the page is still
-sitting there waiting for a form submission, and now we are both waiting for
-each other. Say "answer it in the browser and tell me when you have", and
-wait.
+**The settings page opens on my screen by itself. Do not open it yourself.**
+It is a local address, served by the command you just ran, on my computer. If
+you have a built-in browser, preview pane, or web tool, it is the wrong tool
+here: it renders pages in your environment, not on my desktop, so I see
+nothing and you think it worked. This happened on a real install. The agent
+said it had opened the setup page, I said "you havent opened anything", and it
+spent three more rounds trying to show me a localhost address inside its own
+viewer before giving up and pasting the link, which is what it should have
+done at the start.
+
+So: run the command, and if I say nothing appeared, paste me the
+`http://127.0.0.1:...` address it printed. That is the entire recovery.
+
+**Do not repeat its questions to me here.** Restating the options in chat
+invites me to answer in chat, and an answer typed in chat reaches nothing: the
+page is still sitting there waiting for a form submission, and now we are both
+waiting for each other.
+
+**Do not end your turn to wait for me.** The command has not returned; it is
+sitting on the form and it will carry on by itself the moment I submit it. You
+do not need me to tell you I am done, and asking me to report back adds a step
+that exists only because you stopped. Give me the address, keep the command
+running, and tell me what it prints when it comes back.
 
 **If you cannot open a window on my screen, say so and hand it to me.** Some
 agent tools run commands in a sandbox, where a browser launches somewhere I

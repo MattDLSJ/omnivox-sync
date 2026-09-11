@@ -55,7 +55,7 @@ def test_every_onboarding_question_defaults_to_the_feature_being_on():
         "transcribe": "false",
         "schedule.auto": "false",
         "organize.scan": "false",
-        "notify.macos": "false",
+        "notify.desktop": "false",
     }
     for question in questions_for("onboarding", "darwin"):
         assert question["default"] != off.get(question["key"]), (
@@ -66,8 +66,8 @@ def test_every_onboarding_question_defaults_to_the_feature_being_on():
 def test_onboarding_covers_everything_that_needs_deciding():
     keys = {q["key"] for q in questions_for("onboarding", "darwin")}
     assert keys == {
-        "notebooklm.mode", "transcribe", "schedule.auto",
-        "organize.scan", "notify.macos",
+        "notebooklm.mode", "transcribe", "scheduling.auto",
+        "organize.scan", "notify.desktop",
     }
 
 
@@ -163,7 +163,7 @@ def test_a_submitted_form_writes_the_config_and_keeps_its_comments(config):
     assert "url" in served, "the server never printed a URL"
     try:
         body = urllib.parse.urlencode(
-            {"notebooklm.mode": "off", "transcribe": "false", "notify.macos": "false"}
+            {"notebooklm.mode": "off", "transcribe": "false", "notify.desktop": "false"}
         ).encode()
         save = served["url"].replace("/?t=", "/save?t=")
         urllib.request.urlopen(urllib.request.Request(save, data=body), timeout=10).read()
@@ -175,7 +175,7 @@ def test_a_submitted_form_writes_the_config_and_keeps_its_comments(config):
     loaded = yaml.safe_load(written)
     assert loaded["notebooklm"]["mode"] == "off"
     assert loaded["transcribe"] is False
-    assert loaded["notify"]["macos"] is False
+    assert loaded["notify"]["desktop"] is False
     assert "# Keep this comment." in written
     assert loaded["semester"] == "Automne 2026"
 
@@ -309,7 +309,13 @@ def test_a_wrong_college_does_not_lose_the_answers_already_given(config, monkeyp
 def test_macos_only_questions_are_not_asked_on_windows():
     keys = {q["key"] for q in questions_for("onboarding", "win32")}
     assert "transcribe" not in keys, "lecture recording is macOS only and inert elsewhere"
-    assert "notify.macos" not in keys, "it shells out to osascript, which is not there"
+    # Notifications used to be filtered out here too, on the reasoning that
+    # they shell out to osascript. They did, and that was the bug rather than
+    # the reason: the flag defaulted to true and the question was hidden, so
+    # nothing ever wrote false, and every Windows sync ran osascript, failed,
+    # and wrote "macOS notification failed" to a log nobody reads. Windows now
+    # raises a real toast, so the question belongs on the page.
+    assert "notify.desktop" in keys, "Windows gets real notifications now"
 
 
 def test_the_ones_that_do_work_are_still_asked_on_windows():
@@ -319,7 +325,7 @@ def test_the_ones_that_do_work_are_still_asked_on_windows():
 
 def test_macos_gets_the_ones_windows_cannot_use():
     keys = {q["key"] for q in questions_for("onboarding", "darwin")}
-    assert {"transcribe", "notify.macos"} <= keys
+    assert {"transcribe", "notify.desktop"} <= keys
 
 
 def test_folder_colours_are_not_offered_off_macos():
@@ -333,3 +339,56 @@ def test_windows_onboarding_is_shorter_than_macos():
     assert len(questions_for("onboarding", "win32")) < len(
         questions_for("onboarding", "darwin")
     )
+
+
+def test_the_address_is_flushed_rather_than_buffered(tmp_path):
+    """Python buffers stdout when it is a pipe, which is what it is under an
+    AI agent. The address used to sit in the buffer for the entire wait, so
+    nobody was ever told where to go, nobody submitted the form, and the run
+    died at the timeout. Verified by reading the pipe while the server is
+    still listening, not after it exits."""
+    import subprocess
+    import sys
+    import time
+    from pathlib import Path
+
+    config = tmp_path / "config.yaml"
+    config.write_text(Path("config.example.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+    out = tmp_path / "out.txt"
+    with out.open("wb") as sink:
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "src.setup_page", "--config", str(config),
+             "--timeout", "8", "--no-browser"],
+            stdout=sink, stderr=subprocess.STDOUT, cwd=Path.cwd(),
+        )
+        try:
+            deadline = time.monotonic() + 6
+            seen = ""
+            while time.monotonic() < deadline:
+                seen = out.read_text(encoding="utf-8", errors="replace")
+                if "http://127.0.0.1" in seen:
+                    break
+                time.sleep(0.2)
+            assert "http://127.0.0.1" in seen, (
+                "the address was still in the buffer while the server was up; "
+                f"got {seen!r}"
+            )
+        finally:
+            proc.kill()
+            proc.wait(timeout=10)
+
+
+def test_the_college_field_suggests_without_restricting():
+    """A <select> would be wrong: the suggestions are only the colleges whose
+    portal has been fetched and confirmed, and there are around forty cégeps.
+    Anyone at one that is not listed has to be able to type it, which works,
+    because the name is resolved against the live portal rather than looked up
+    in the list."""
+    from src.setup_page import COLLEGE_FIELD, _render_form
+
+    body = _render_form({}, "tok", "onboarding", "")
+    assert "<datalist" in body and "list=\"colleges\"" in body
+    assert "<select" not in body, "a closed list would lock out unlisted colleges"
+    assert "Édouard-Montpetit" in body and "Vanier College" in body
+    # The input is still free text, and still required.
+    assert f'type="text" name="{COLLEGE_FIELD}"' in body

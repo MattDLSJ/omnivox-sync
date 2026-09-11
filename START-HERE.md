@@ -239,7 +239,43 @@ background work.
 If LibreOffice is not ready by the first sync, that is not a failure. The
 conversion is logged, the original file is kept, and the run carries on.
 
-**4. Sign in once, in a real browser.**
+**4. Ask me which parts of this I want.**
+
+This has to come BEFORE the sign-in below, and the order used to be the
+other way round. `make login` builds the Omnivox address from
+`school.portal`, which this page is what writes. Run before it, the portal
+is empty, the address falls back to the author's own cégep, and the
+student is asked to type their student number and password into a college
+they do not attend.
+
+    make setup
+
+A page opens in my browser and asks which college I attend and which features
+I want. It writes my answers into `config.yaml`.
+
+**The page opens on my screen by itself. Do not open it yourself.** It is a
+local address served on my computer. A built-in browser or preview tool
+renders it in your environment, where I cannot see it, and you will believe it
+worked. If I say nothing appeared, paste me the `http://127.0.0.1:...` address
+the command printed; that is the whole recovery.
+
+**Do not repeat its questions to me in the chat.** Print the address and keep
+the command running.
+Restating the options invites me to answer here, and an answer typed here
+reaches nothing: the page is still waiting on a form submission, and now we
+are both waiting for each other. The page also explains what each choice
+costs, which a chat message does not.
+
+It only asks about things that do something on my operating system, so the
+Windows page is one question shorter: lecture recording is macOS only. Do
+not tell me how many questions there are. That number has been wrong in
+this file three separate times, because it is written here by hand and
+decided in code.
+
+Everything else has a sensible default and lives behind `make settings`, which
+I can open any time. Mention that it exists, then move on.
+
+**5. Sign in once, in a real browser.**
 
     make login
 
@@ -264,26 +300,6 @@ makes me type it a second time.**
 
 `make login` also discovers my courses and writes them into `config.yaml` in
 the same session, so there is usually nothing to do at step 6.
-
-**5. Ask me which parts of this I want.**
-
-    make setup
-
-A page opens in my browser and asks which college I attend and which features
-I want. It writes my answers into `config.yaml`.
-
-**Do not repeat its questions to me in the chat.** Print the address and stop.
-Restating the options invites me to answer here, and an answer typed here
-reaches nothing: the page is still waiting on a form submission, and now we
-are both waiting for each other. The page also explains what each choice
-costs, which a chat message does not.
-
-It only asks about things that do something on my operating system. On Windows
-that is two questions, not four, because lecture recording is macOS only and
-desktop notifications go through a macOS command that does not exist there.
-
-Everything else has a sensible default and lives behind `make settings`, which
-I can open any time. Mention that it exists, then move on.
 
 **6. Check the courses it found.**
 
@@ -476,7 +492,7 @@ If the pull refuses because I have my own commits, tell me to put them on a
 branch or stash them rather than forcing anything. And if it refuses because
 this is not a git repository, go back to confirmation 1.
 
-### The three questions on the setup page, explained
+### The questions on the setup page, explained
 
 You do not ask me these. The page does, and it explains each one. This is here
 so that you can answer if I ask you about them.

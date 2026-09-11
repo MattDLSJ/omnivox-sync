@@ -14,6 +14,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import yaml
 
@@ -34,6 +35,7 @@ from src.common import (
 )
 from src.convert import ConversionError, convert_to_pdf, is_uploadable, needs_conversion
 from src.finder import decorate
+from src.folder_readme import worth_recording
 from src.omnivox import (
     MfaRequired,
     OmnivoxCourse,
@@ -528,13 +530,21 @@ def merge_courses(config_text: str, courses, semester: str) -> tuple[str, int, i
             kept += 1
         else:
             folder = folder_name_from(course.name)
-            out.append({
+            entry = {
                 "code": course.code,
                 "omnivox_name": course.name,
                 "folder": folder,
                 "notebook": f"{folder} - Cegep {semester}",
-                "record": False,
-            })
+            }
+            # False for every course was safe and useless: nobody hand-edits
+            # six entries in a YAML file, so the recorder had nothing opted in
+            # and could never run for anyone who did not already know it
+            # existed. worth_recording has been sitting here since the README
+            # work, correctly rejecting gym and stage, wired to nothing but a
+            # paragraph of prose. Only new courses are touched; the merge path
+            # above keeps whatever is already set.
+            entry["record"] = worth_recording(SimpleNamespace(**entry))
+            out.append(entry)
             added += 1
     # Anything configured that discovery did not return, kept at the end.
     out.extend(by_code.values())
@@ -546,17 +556,25 @@ def merge_courses(config_text: str, courses, semester: str) -> tuple[str, int, i
     )
 
 
+def _discovered_entry(course: OmnivoxCourse, semester: str) -> dict:
+    """One `courses:` entry, with recording pre-answered by the same rule the
+    per-course README already uses, so the two cannot disagree."""
+    folder = folder_name_from(course.name)
+    entry = {
+        "code": course.code,
+        "omnivox_name": course.name,
+        "folder": folder,
+        "notebook": f"{folder} - Cegep {semester}",
+    }
+    entry["record"] = worth_recording(SimpleNamespace(**entry))
+    return entry
+
+
 def render_discovery_yaml(courses: list[OmnivoxCourse], semester: str) -> str:
     """A paste-ready `courses:` block for config.yaml (spec section 5.3)."""
     block = {
         "courses": [
-            {
-                "code": course.code,
-                "omnivox_name": course.name,
-                "folder": folder_name_from(course.name),
-                "notebook": f"{folder_name_from(course.name)} - Cegep {semester}",
-                "record": False,
-            }
+            _discovered_entry(course, semester)
             for course in courses
         ]
     }
@@ -1406,7 +1424,11 @@ def _bootstrap_login(
     if not (user and password) and typed_user and typed_pass:
         _offer_to_save_credentials(cfg, typed_user, typed_pass)
 
-    print("\nNext: make setup, then make dry-run")
+    # Not "make setup" any more. Setup is what writes school.portal, and a
+    # login that happened before it was pointed at whichever cégep the config
+    # defaults to, not this student's. If we got here the portal is already
+    # set, so the next thing is genuinely a dry run.
+    print("\nNext: make dry-run")
     return 0
 
 

@@ -251,3 +251,23 @@ def test_the_prefill_stays_under_what_github_will_accept():
     """6000 made GitHub's own web application answer HTTP 500, which reads to
     the reporter as their report being rejected."""
     assert field_report.MAX_PREFILL <= 2000
+
+
+def test_the_relay_works_for_somebody_who_just_cloned(monkeypatch):
+    """It used to read only `git config report.relay`, which is per-checkout
+    local config. It was set on the maintainer's machine and nowhere else, so
+    the automated route worked for exactly one person and every tester got
+    "here is a link, paste this yourself" instead. The point of the relay was
+    that nobody clicks that link."""
+    import scripts.field_report as fr
+
+    monkeypatch.setattr(fr, "_git", lambda *a, **k: "")   # a fresh clone
+    assert fr._relay_url().startswith("https://")
+
+
+def test_a_fork_can_still_point_the_relay_somewhere_else(monkeypatch):
+    """Which is what the git config is for now."""
+    import scripts.field_report as fr
+
+    monkeypatch.setattr(fr, "_git", lambda *a, **k: "https://mine.example.workers.dev")
+    assert fr._relay_url() == "https://mine.example.workers.dev"

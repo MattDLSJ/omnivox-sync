@@ -116,3 +116,49 @@ def test_the_real_example_config_survives_a_full_pass():
     after = [l for l in out.splitlines() if l.strip().startswith("#")]
     assert before == after, "the example config's comments are its documentation"
     assert yaml.safe_load(out)["notebooklm"]["mode"] == "staging"
+
+
+def test_a_setting_cannot_be_nested_under_a_value_that_already_exists():
+    """`schedule:` is the timetable and it is a list. Writing "auto: true"
+    under it produced a config.yaml that YAML would not parse, which broke
+    every command in the project, and the installer then reported it as "no
+    college is set" and sent the student back to redo the step that had just
+    broken it. Refusing is the only safe answer: guessing that the caller
+    meant to replace the list would silently delete a term's timetable."""
+    import pytest
+
+    from src.config_edit import ConfigEditError, set_value
+
+    with pytest.raises(ConfigEditError, match="already holds a value"):
+        set_value("schedule: []\n", ["schedule", "auto"], True)
+    with pytest.raises(ConfigEditError, match="already holds a value"):
+        set_value("semester: Fall 2026\n", ["semester", "auto"], True)
+    # A parent with nothing after the colon is still a legitimate block, and a
+    # trailing comment is not a value.
+    assert "auto: true" in set_value("school:\n", ["school", "auto"], True)
+    assert "auto: true" in set_value("school:  # a note\n", ["school", "auto"], True)
+
+
+def test_every_question_the_form_posts_survives_a_real_config():
+    """The old version of this test hand-picked four keys that happened to
+    work and passed for as long as the form was posting a fifth that corrupted
+    the file. Test the set the form actually sends, and check the app's own
+    loader rather than just the YAML parser, because only the loader knows
+    that a setting has to end up somewhere it will be read from."""
+    from pathlib import Path
+
+    from src.common import load_config
+    from src.config_edit import set_value
+    from src.setup_page import QUESTIONS
+
+    text = Path("config.example.yaml").read_text(encoding="utf-8")
+    for question in QUESTIONS:
+        text = set_value(text, question["key"].split("."), question["default"])
+
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "config.yaml"
+        path.write_text(text, encoding="utf-8")
+        cfg = load_config(path)          # raises if the result is unreadable
+    assert cfg.schedule_auto is True     # and the answer is actually read back

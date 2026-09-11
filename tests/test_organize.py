@@ -139,4 +139,71 @@ def test_the_summary_says_what_was_left_behind(tmp_path):
 
     plan = Plan(moves=[], unmatched=[Path("/x/a.pdf"), Path("/x/b.pdf")])
     assert "2 other document" in summary(plan)
-    assert "Nothing was deleted" in summary(plan)
+    # "is ever deleted" rather than "was deleted": the same sentence now has
+    # to be true in a preview shown before anything has happened.
+    assert "Nothing is ever deleted" in summary(plan)
+    assert "Nothing is ever deleted" in summary(plan, planned=True)
+
+
+def test_a_preview_does_not_claim_the_files_have_moved():
+    """The installer shows this before moving anything now. "Filed 57 files"
+    above a list of files still sitting in Downloads is the kind of wrong that
+    sends somebody to go and check their folders."""
+    from pathlib import Path as _P
+
+    from src.organize import Plan, summary
+
+    class _C:
+        folder = "Philosophie"
+
+    plan = Plan(moves=[(_P("/tmp/a.pdf"), _C())], unmatched=[_P("/tmp/b.pdf")])
+    preview = summary(plan, planned=True)
+    assert "Found 1 file(s) to file" in preview
+    assert "Filed" not in preview
+    assert "will be left" in preview
+    after = summary(plan)
+    assert "Filed 1 file(s)" in after
+
+
+def test_the_scan_asks_windows_where_documents_is(monkeypatch, tmp_path):
+    """`home / "Documents"` is frequently the wrong folder on Windows.
+    Documents, Desktop and Downloads are known folders that can be pointed
+    anywhere: OneDrive's Known Folder Move does it, a school's Group Policy
+    does it, and so does anybody who opened Properties and pressed Move. The
+    original path stays behind as a near-empty leftover, so the scan read the
+    empty one and reported that there was nothing to file."""
+    import src.common as common
+
+    redirected = tmp_path / "Redirected" / "Documents"
+    redirected.mkdir(parents=True)
+    (redirected / "340-101-MQ_notes.pdf").write_text("x", encoding="utf-8")
+    leftover = tmp_path / "home" / "Documents"
+    leftover.mkdir(parents=True)
+    (leftover / "601-102-MQ_plan.pdf").write_text("x", encoding="utf-8")
+
+    monkeypatch.setattr(common.sys, "platform", "win32")
+    monkeypatch.setattr(common, "_windows_known_folder",
+                        lambda name: redirected if name == "Documents" else None)
+    monkeypatch.setattr(common.Path, "home", classmethod(lambda cls: tmp_path / "home"))
+
+    from src.organize import candidates
+
+    found = {p.name for p in candidates(None, [])}
+    # Both, because the redirected folder is where files go now and the plain
+    # one usually still holds whatever predates the redirect.
+    assert "340-101-MQ_notes.pdf" in found, "the redirected Documents was not searched"
+    assert "601-102-MQ_plan.pdf" in found, "the leftover Documents was not searched"
+
+
+def test_organize_does_not_resolve_home_before_the_lookup_can_happen():
+    """It used to. `home = home or Path.home()` ran before candidates(), so
+    user_folders was always handed a concrete home, the Windows lookup was
+    skipped, and the fix above worked in tests and nowhere else."""
+    import inspect
+
+    from src import organize as mod
+
+    source = inspect.getsource(mod.organize)
+    assert "candidates(given" in source, (
+        "organize must pass the caller's original home, not the resolved one"
+    )

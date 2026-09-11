@@ -27,11 +27,31 @@ def test_empty_courses_is_valid(write_config, tmp_repo):
     assert cfg.courses == []
 
 
-def test_missing_base_path_raises(write_config, tmp_repo):
+def test_an_absent_base_path_is_worked_out_rather_than_refused(write_config, tmp_repo):
+    """It used to raise. That made the example ship a fixed string, and the
+    fixed string was wrong in two ways at once: the year was frozen, so an
+    install in January filed a winter term into "Cegep Automne 2026", and the
+    word was French while every folder the project creates around it, and
+    every notebook it names, is English. A fresh install produced a folder
+    called Automne holding notebooks called Fall."""
     path = write_config()
-    path.write_text("semester: X\n", encoding="utf-8")
-    with pytest.raises(ConfigError, match="base_path"):
-        load_config(path, repo_root=tmp_repo)
+    path.write_text("semester: Winter 2027\ncourses: []\n", encoding="utf-8")
+    cfg = load_config(path, repo_root=tmp_repo)
+    assert cfg.base_path.name == "Cegep Winter 2027"
+    assert cfg.base_path.is_absolute()
+
+
+def test_the_folder_and_the_notebooks_are_named_in_the_same_language(tmp_path):
+    """The bug that made this worth changing: they disagreed, in the shipped
+    example, on a fresh install, with nothing to tell you."""
+    import shutil
+
+    from src.common import load_config
+
+    path = tmp_path / "config.yaml"
+    shutil.copy("config.example.yaml", path)
+    cfg = load_config(path)
+    assert cfg.base_path.name == f"Cegep {cfg.semester}"
 
 
 def test_invalid_yaml_raises_with_filename(write_config, tmp_repo):
@@ -332,3 +352,36 @@ def test_every_generated_name_is_in_one_language():
     french = ("livres", "communiques", "horaire", "etude", "voix")
     for name in names:
         assert not any(word in name.lower() for word in french), name
+
+
+def test_documents_is_where_windows_says_it_is_not_where_we_guessed(monkeypatch, tmp_path):
+    """Reported from a real machine: the automation created
+    C:\\Users\\mdelo\\Documents\\School\\... while Explorer's Documents points at
+    C:\\Users\\mdelo\\OneDrive\\Documents. OneDrive's Known Folder Move is on by
+    default on a lot of Windows installs and on essentially every managed one,
+    and it leaves the original folder behind nearly empty. Building the path
+    from ~ put a semester of coursework somewhere its owner could not find."""
+    import src.common as common
+
+    onedrive = tmp_path / "OneDrive" / "Documents"
+    monkeypatch.setattr(common.sys, "platform", "win32")
+    monkeypatch.setattr(common, "_windows_known_folder",
+                        lambda name: onedrive if name == "Documents" else None)
+    assert common.user_folder("Documents") == onedrive
+
+
+def test_a_mac_is_unaffected(monkeypatch, tmp_path):
+    """No known folder API, no redirect, no change."""
+    import src.common as common
+
+    monkeypatch.setattr(common.sys, "platform", "darwin")
+    monkeypatch.setattr(common.Path, "home", classmethod(lambda cls: tmp_path))
+    assert common.user_folder("Documents") == tmp_path / "Documents"
+
+
+def test_an_explicit_base_path_is_still_obeyed(write_config, tmp_repo, tmp_path):
+    """Somebody who chose where their files go keeps that choice."""
+    chosen = tmp_path / "elsewhere" / "School"
+    path = write_config()
+    path.write_text(f'base_path: "{chosen}"\ncourses: []\n', encoding="utf-8")
+    assert load_config(path, repo_root=tmp_repo).base_path == chosen
