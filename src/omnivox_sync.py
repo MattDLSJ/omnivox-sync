@@ -452,7 +452,93 @@ def folder_name_from(display_name: str) -> str:
     return cleaned
 
 
-def write_courses(config_path: Path, courses: list[OmnivoxCourse], semester: str) -> int:
+def _fetch_timetable(session, log) -> list[dict]:
+    """The timetable, during discovery. Never fatal: discovery already worked.
+
+    Folded into `--discover` rather than given its own command, because a
+    second command is a second thing to know about, and the person who most
+    needs the timetable is the one who has just installed this and knows none
+    of the commands yet.
+    """
+    from src.schedule_scrape import parse_horaire, session_code
+
+    try:
+        page = session.fetch_horaire(session_code())
+        slots = parse_horaire(page) if page else []
+    except Exception as exc:  # noqa: BLE001
+        log.info("Could not read the timetable (%s).", type(exc).__name__)
+        return []
+    if not slots:
+        log.info("No timetable found; the schedule is left as it was.")
+    return slots
+
+
+def _by_course(slots: list[dict]) -> dict:
+    """Teacher and group per course code, from the timetable's cells."""
+    out: dict[str, dict] = {}
+    for slot in slots:
+        entry = out.setdefault(slot["course"], {})
+        for key in ("teacher", "group"):
+            if slot.get(key) and not entry.get(key):
+                entry[key] = slot[key]
+    return out
+
+
+def write_schedule(config_path: Path, slots: list[dict]) -> int:
+    """Put the scraped timetable into config.yaml. Returns how many slots.
+
+    This is the block the recorder needs and the one nothing in this project
+    ever produced. Without it `tick()` returns "inert" on every platform, so
+    lecture recording could not work from a fresh install however much the
+    installer did. The design spec had put it out of scope for v1 and it
+    stayed out of scope by inertia; the college publishes it on a page the
+    student already has a login for.
+
+    Per-slot `record:` overrides survive. They are the one thing here a person
+    sets by hand and the college cannot know: one slot of a course can be a
+    different kind of event, an encadrement where the talking is other
+    students asking about their own work rather than a lecture.
+    """
+    import yaml as _yaml
+
+    from src.config_edit import set_block
+
+    if not slots:
+        return 0
+    text = config_path.read_text(encoding="utf-8")
+    existing = {}
+    try:
+        for item in (_yaml.safe_load(text) or {}).get("schedule") or []:
+            if isinstance(item, dict) and item.get("record") is not None:
+                existing[(
+                    str(item.get("course")),
+                    str(item.get("weekday")),
+                    str(item.get("start")),
+                )] = item["record"]
+    except Exception:  # noqa: BLE001 - a broken config still deserves a write
+        existing = {}
+
+    entries = []
+    for slot in slots:
+        entry = {k: v for k, v in slot.items() if k not in ("teacher", "group")}
+        kept = existing.get((entry["course"], entry["weekday"], entry["start"]))
+        if kept is not None:
+            entry["record"] = kept
+        entries.append(entry)
+
+    block = _yaml.safe_dump(
+        {"schedule": entries}, allow_unicode=True, sort_keys=False, width=1000
+    )
+    config_path.write_text(set_block(text, "schedule", block), encoding="utf-8")
+    return len(entries)
+
+
+def write_courses(
+    config_path: Path,
+    courses: list[OmnivoxCourse],
+    semester: str,
+    details: dict | None = None,
+) -> int:
     """Put the discovered courses into config.yaml, keeping the rest of it.
 
     Printing a block for somebody to paste in assumed a person who knows what
@@ -473,7 +559,7 @@ def write_courses(config_path: Path, courses: list[OmnivoxCourse], semester: str
     backup = config_path.with_suffix(config_path.suffix + ".bak")
     backup.write_text(original, encoding="utf-8")
 
-    merged, added, kept = merge_courses(original, courses, semester)
+    merged, added, kept = merge_courses(original, courses, semester, details)
     updated = set_block(original, "courses", merged)
     config_path.write_text(updated, encoding="utf-8")
 
@@ -500,7 +586,9 @@ def write_courses(config_path: Path, courses: list[OmnivoxCourse], semester: str
     return len(courses)
 
 
-def merge_courses(config_text: str, courses, semester: str) -> tuple[str, int, int]:
+def merge_courses(
+    config_text: str, courses, semester: str, details: dict | None = None
+) -> tuple[str, int, int]:
     """Add what is new, leave alone what is already configured.
 
     Replacing the whole block wholesale was how a real config lost every
@@ -544,6 +632,15 @@ def merge_courses(config_text: str, courses, semester: str) -> tuple[str, int, i
             # paragraph of prose. Only new courses are touched; the merge path
             # above keeps whatever is already set.
             entry["record"] = worth_recording(SimpleNamespace(**entry))
+            # The teacher's name, from the timetable page, and it is not a
+            # nicety: src/mio.py matches an Omnivox message's sender against
+            # this field, so without it MIO filing silently does nothing at
+            # all. It worked for exactly one person, who had typed the names
+            # in by hand before the feature existed.
+            extra = (details or {}).get(course.code) or {}
+            for key in ("teacher", "group"):
+                if extra.get(key):
+                    entry[key] = extra[key]
             out.append(entry)
             added += 1
     # Anything configured that discovery did not return, kept at the end.
@@ -1684,7 +1781,13 @@ def _run(args, cfg: Config, log: logging.Logger) -> int:
                     print("# existing course list. Adjust folder names if you like.\n")
                     print(render_discovery_yaml(courses, cfg.semester))
                     return 0
-                write_courses(Path(args.config), courses, cfg.semester)
+                slots = _fetch_timetable(session, log)
+                write_courses(
+                    Path(args.config), courses, cfg.semester, _by_course(slots)
+                )
+                if slots:
+                    written = write_schedule(Path(args.config), slots)
+                    log.info("Timetable: %d class slot(s) written.", written)
                 return 0
 
             result = sync(
