@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v33 (2026-09-11)
+
+Setting up now finds the course files already on your machine and files them into the right course, which the settings page had been offering while nothing behind it did anything. A file moves only when its name says which course it belongs to; nothing is deleted, nothing is overwritten, and anything ambiguous is reported and left where it is.
+
 ## v32 (2026-09-11)
 
 Setting up now decides instead of recommending. Scheduling, finding the course files you already have, lecture recording and notifications are all questions on the settings page and all arrive switched on, and the installer installs the scheduled job itself rather than telling you how. Reports also file themselves now through a relay, so nobody has to have a GitHub account or click a prefilled link.

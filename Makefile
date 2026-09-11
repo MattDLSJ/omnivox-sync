@@ -57,7 +57,8 @@ public-snapshot:
 # quotes and two lines correctly.
 publish:
 	@PUBLISH_MESSAGE=$${MESSAGE:-} $(PY) scripts/publish.py \
-	  $(if $(MESSAGE),--message-env PUBLISH_MESSAGE) $(if $(DRY),--dry-run)
+	  $(if $(MESSAGE),--message-env PUBLISH_MESSAGE) $(if $(DRY),--dry-run) \
+	  $(if $(DELETIONS),--confirm-deletions)
 
 # For someone who INSTALLED this: pull the latest release and reinstall
 # anything new. Dependencies do change between releases, and a pull on its own

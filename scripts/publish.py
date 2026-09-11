@@ -194,6 +194,12 @@ def main(argv: list[str] | None = None) -> int:
         "passes through a shell that would mangle quotes and dollar signs",
     )
     parser.add_argument("--dry-run", action="store_true", help="stop before pushing")
+    parser.add_argument(
+        "--confirm-deletions",
+        action="store_true",
+        help="publish even though it removes files from the published repo. The "
+        "list is printed first; this says you meant those ones.",
+    )
     args = parser.parse_args(argv)
 
     url = _remote()
@@ -216,12 +222,18 @@ def main(argv: list[str] | None = None) -> int:
         print("\nThese files exist in the published repo and will be DELETED:")
         for name in removed:
             print(f"    {name}")
-        if not sys.stdin.isatty():
+        if args.confirm_deletions:
+            # Named per invocation, and it prints what it is about to remove
+            # first, so "I know" has to be about THESE files rather than a
+            # flag somebody left in a script forever.
+            print("  (confirmed by --confirm-deletions)")
+        elif not sys.stdin.isatty():
             raise SystemExit(
-                "Refusing to delete published files without a confirmation. "
-                "Run this in a terminal."
+                "Refusing to delete published files without a confirmation.\n"
+                "Run this in a terminal, or, if the list above is exactly what "
+                "you meant\nto remove, pass --confirm-deletions."
             )
-        if input("Delete them? [y/N] ").strip().lower() not in ("y", "yes"):
+        elif input("Delete them? [y/N] ").strip().lower() not in ("y", "yes"):
             raise SystemExit("Nothing published.")
 
     snap._assert_nothing_forbidden(public)

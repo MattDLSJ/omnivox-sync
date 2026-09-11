@@ -382,6 +382,39 @@ def first_sync() -> None:
     run([str(VENV_PYTHON), "-m", "src.omnivox_sync"])
 
 
+def organize_existing() -> None:
+    """File the course material already scattered on this machine.
+
+    Almost nobody installs this in week one. They install it in week three,
+    with four PDFs in Downloads and a syllabus on the desktop, and the sync
+    fetches from today forward and leaves all of that where it was. That is
+    how somebody ends up with two copies of a course: the tidy one this made
+    and the real one they have been using.
+    """
+    sys.path.insert(0, str(ROOT))
+    from src.common import load_config
+
+    try:
+        cfg = load_config(ROOT / "config.yaml", repo_root=ROOT)
+    except Exception:  # noqa: BLE001
+        return
+    if not getattr(cfg, "organize_scan", True):
+        return
+
+    step("Looking for course files already on this machine")
+    print("    Downloads, Desktop and Documents. Nothing is ever deleted, and")
+    print("    a file only moves when its name says which course it belongs to.\n")
+    from src.organize import organize, summary
+
+    try:
+        plan = organize(cfg, logger=None)
+    except Exception as exc:  # noqa: BLE001 - never worth the rest of setup
+        warn(f"could not search for existing files ({type(exc).__name__})")
+        return
+    for line in summary(plan).splitlines():
+        print(f"    {line}")
+
+
 def schedule_it() -> None:
     """Install the scheduled job, if the settings page said so.
 
@@ -502,6 +535,7 @@ def main(argv: list[str]) -> int:
     sign_in()
     ensure_credentials()
     first_sync()
+    organize_existing()
     schedule_it()
     finish()
     return 0
