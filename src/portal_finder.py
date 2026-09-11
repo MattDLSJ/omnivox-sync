@@ -42,6 +42,23 @@ VERIFIED = {
     "cegepmontpetit": ("Cégep Édouard-Montpetit", "fr"),
     "collegeahuntsic": ("Collège Ahuntsic", "fr"),
     "slc": ("Cégep Champlain-St.Lawrence", "en"),
+    # Every one below was confirmed by fetching its sign-in page and reading
+    # the college's own name out of the title, not copied from a directory.
+    # They are here so the common colleges answer with no network round trip
+    # at all, and so a known-good spelling always beats a generated guess.
+    "cegepsherbrooke": ("Cégep de Sherbrooke", "fr"),
+    "cstj": ("Cégep de Saint-Jérôme", "fr"),
+    "vaniercollege": ("Vanier College", "en"),
+    "dawsoncollege": ("Dawson College", "en"),
+    "cmaisonneuve": ("Collège de Maisonneuve", "fr"),
+    "johnabbott": ("John Abbott College", "en"),
+    "cegepgranby": ("Cégep de Granby", "fr"),
+    "cvm": ("Cégep du Vieux Montréal", "fr"),
+    "climoilou": ("Cégep Limoilou", "fr"),
+    "cegeplevis": ("Cégep de Lévis", "fr"),
+    "cegeptr": ("Cégep de Trois-Rivières", "fr"),
+    "csfoy": ("Cégep de Sainte-Foy", "fr"),
+    "collegemv": ("Cégep Marie-Victorin", "fr"),
 }
 
 #: How to tell a French portal from an English one WITHOUT asking anybody.
@@ -97,15 +114,30 @@ def slugs(name: str) -> list[str]:
         "st" if w in ("saint", "sainte", "st", "ste") else w[0] for w in meaningful
     )
 
+    # English colleges put the word last (vaniercollege, dawsoncollege) where
+    # French ones put it first (collegeahuntsic). Both conventions have to be
+    # generated, because "college" is stripped as noise before we get here and
+    # so the typed word order is already gone. Tested live: without the suffix
+    # form, Vanier and Dawson both resolve to nothing while their portals sit
+    # there answering.
     out = [
         joined,                 # collegeahuntsic, once cegep is dropped
+        f"{joined}college",     # vaniercollege, dawsoncollege
         f"cegep{joined}",
         f"cegep{last}",         # cegepmontpetit, from Edouard-Montpetit
         last,
         # cvm for Vieux Montreal, cstj for Saint-Jerome: the c is the dropped
         # "cegep", which is exactly why it has to be added back here.
         f"c{initials}",
+        # The same dropped word spelled out rather than initialised
+        # (cmaisonneuve), or kept as the full word before initials
+        # (cegeptr, collegemv). All three were found by probing, not guessed.
+        f"c{joined}",
+        f"cegep{initials}",
+        f"college{initials}",
         f"college{joined}",
+        # csfoy, from Sainte-Foy: first word initialised, last word whole.
+        f"c{first[0]}{last}" if len(meaningful) > 1 else "",
         first,
         initials if len(initials) > 2 else "",
     ]

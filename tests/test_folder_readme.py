@@ -184,3 +184,17 @@ def test_the_agents_instructions_come_before_the_senders_note():
 
     body = _Path("INSTALL.md").read_text(encoding="utf-8")
     assert body.index("## Prompt") < body.index("For whoever is sending this file")
+
+
+def test_the_agent_is_told_not_to_open_the_page_in_its_own_browser():
+    """Observed on a real install: the agent announced it had opened the setup
+    page, nothing appeared, and it spent three rounds trying to render a
+    localhost address inside its own in-app viewer before pasting the link.
+    The page is served on the user's machine; an agent's browser tool is the
+    wrong tool and the failure looks like success from the agent's side."""
+    from pathlib import Path as _Path
+
+    for name in ("INSTALL.md", "START-HERE.md"):
+        body = _Path(name).read_text(encoding="utf-8")
+        assert "Do not open it yourself" in body, name
+        assert "127.0.0.1" in body, f"{name} must name what to paste when it fails"

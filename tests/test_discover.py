@@ -18,7 +18,12 @@ def test_every_required_course_key_is_present():
     parsed = yaml.safe_load(render_discovery_yaml(COURSES, "Automne 2026"))
     for course in parsed["courses"]:
         assert set(course) == {"code", "omnivox_name", "folder", "notebook", "record"}
-        assert course["record"] is False
+        # Was hardcoded False for every course, which is safe and useless:
+        # nobody hand-edits six YAML entries, so nothing was ever opted in and
+        # the recorder could not run for anyone who did not already know it
+        # existed. worth_recording decides now, and it is the same rule the
+        # per-course README already states, so the two cannot disagree.
+        assert isinstance(course["record"], bool)
 
 
 def test_notebook_name_includes_the_semester():
@@ -211,3 +216,17 @@ def test_shortening_flows_through_folder_and_notebook_names():
     assert parsed["folder"] == "Histoire du monde"
     assert parsed["notebook"] == "Histoire du monde - Cegep Fall 2026"
     assert parsed["omnivox_name"] == "HISTOIRE DU MONDE, DU XVE SIÈCLE À NOS JOURS"
+
+
+def test_discovery_does_not_offer_to_record_a_gym_class():
+    """The spec item was "intelligently do not record gym classes". The rule
+    was already written and already correct; it was wired to a paragraph of
+    prose in the course README and to nothing else."""
+    from types import SimpleNamespace
+
+    from src.omnivox_sync import _discovered_entry
+
+    gym = SimpleNamespace(code="109-321-EM", name="Activité physique et sportive")
+    lecture = SimpleNamespace(code="340-101-MQ", name="Philosophie et rationalité")
+    assert _discovered_entry(gym, "Fall 2026")["record"] is False
+    assert _discovered_entry(lecture, "Fall 2026")["record"] is True

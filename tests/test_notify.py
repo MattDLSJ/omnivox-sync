@@ -31,7 +31,7 @@ def test_credentials_are_stripped(tmp_repo, write_env):
 def test_notify_invokes_osascript(monkeypatch):
     calls = []
     monkeypatch.setattr("src.common.subprocess.run", lambda *a, **k: calls.append(a[0]))
-    notify("Title", "Body", cfg=NotifyConfig(macos=True, ntfy_topic=""))
+    notify("Title", "Body", cfg=NotifyConfig(desktop=True, ntfy_topic=""))
     assert calls and calls[0][0] == "osascript"
     assert "Body" in calls[0][-1] and "Title" in calls[0][-1]
 
@@ -39,14 +39,14 @@ def test_notify_invokes_osascript(monkeypatch):
 def test_notify_escapes_double_quotes(monkeypatch):
     calls = []
     monkeypatch.setattr("src.common.subprocess.run", lambda *a, **k: calls.append(a[0]))
-    notify('He said "hi"', 'a "quoted" body', cfg=NotifyConfig(macos=True, ntfy_topic=""))
+    notify('He said "hi"', 'a "quoted" body', cfg=NotifyConfig(desktop=True, ntfy_topic=""))
     assert '\\"' in calls[0][-1]
 
 
 def test_notify_skips_osascript_when_macos_false(monkeypatch):
     calls = []
     monkeypatch.setattr("src.common.subprocess.run", lambda *a, **k: calls.append(a))
-    notify("T", "B", cfg=NotifyConfig(macos=False, ntfy_topic=""))
+    notify("T", "B", cfg=NotifyConfig(desktop=False, ntfy_topic=""))
     assert calls == []
 
 
@@ -68,7 +68,7 @@ def test_notify_posts_to_ntfy_when_topic_set(monkeypatch):
 
     monkeypatch.setattr("src.common.subprocess.run", lambda *a, **k: None)
     monkeypatch.setattr("src.common.urllib.request.urlopen", fake_urlopen)
-    notify("T", "B", cfg=NotifyConfig(macos=False, ntfy_topic="my-topic"))
+    notify("T", "B", cfg=NotifyConfig(desktop=False, ntfy_topic="my-topic"))
     import json as _json
 
     body = _json.loads(posted["body"])
@@ -100,7 +100,7 @@ def test_ntfy_preserves_emoji_and_accents_in_the_title(monkeypatch):
     monkeypatch.setattr("src.common.subprocess.run", lambda *a, **k: None)
     monkeypatch.setattr("src.common.urllib.request.urlopen", fake_urlopen)
     notify("⚠ 4 important · 15 annonces", "Évaluations terminales",
-           cfg=NotifyConfig(macos=False, ntfy_topic="t"))
+           cfg=NotifyConfig(desktop=False, ntfy_topic="t"))
     body = _json.loads(posted["body"])
     assert body["title"] == "⚠ 4 important · 15 annonces"
     assert body["message"] == "Évaluations terminales"
@@ -128,7 +128,7 @@ def test_an_alert_stands_out_without_seizing_the_phone(monkeypatch):
 
     monkeypatch.setattr("src.common.subprocess.run", lambda *a, **k: None)
     monkeypatch.setattr("src.common.urllib.request.urlopen", fake_urlopen)
-    notify("T", "B", critical=True, cfg=NotifyConfig(macos=False, ntfy_topic="t"))
+    notify("T", "B", critical=True, cfg=NotifyConfig(desktop=False, ntfy_topic="t"))
     assert _json.loads(posted["body"])["priority"] == 4
 
 
@@ -137,7 +137,7 @@ def test_notify_never_raises_when_osascript_explodes(monkeypatch):
         raise OSError("no osascript here")
 
     monkeypatch.setattr("src.common.subprocess.run", boom)
-    notify("T", "B", cfg=NotifyConfig(macos=True, ntfy_topic=""))
+    notify("T", "B", cfg=NotifyConfig(desktop=True, ntfy_topic=""))
 
 
 def test_notify_never_raises_when_ntfy_explodes(monkeypatch):
@@ -146,7 +146,7 @@ def test_notify_never_raises_when_ntfy_explodes(monkeypatch):
         "src.common.urllib.request.urlopen",
         lambda *a, **k: (_ for _ in ()).throw(OSError("offline")),
     )
-    notify("T", "B", cfg=NotifyConfig(macos=False, ntfy_topic="t"))
+    notify("T", "B", cfg=NotifyConfig(desktop=False, ntfy_topic="t"))
 
 
 def test_setup_logging_writes_to_logs_dir(tmp_repo):
@@ -189,3 +189,57 @@ def test_console_logging_goes_to_stdout_not_stderr(tmp_repo):
     ]
     assert stream_handlers, "expected a console handler"
     assert stream_handlers[0].stream is sys.stdout
+
+
+def test_windows_gets_a_real_toast_and_not_osascript(monkeypatch):
+    """The whole point of the rename. A Windows install used to run osascript
+    at every one of the ~30 notify() call sites, fail, and log that a macOS
+    notification had failed, which is both useless and untrue."""
+    import subprocess as sp
+
+    from src.common import NotifyConfig, notify
+
+    calls = []
+    monkeypatch.setattr("src.common.sys.platform", "win32")
+    monkeypatch.setattr(sp, "run", lambda cmd, **kw: calls.append((cmd, kw)) or None)
+    notify("Titre", "3 nouveaux documents", cfg=NotifyConfig(desktop=True))
+
+    assert len(calls) == 1
+    cmd, kwargs = calls[0]
+    assert cmd[0] == "powershell"
+    assert "osascript" not in " ".join(cmd)
+    assert "ToastNotificationManager" in cmd[-1]
+    # The text must not be interpolated into the script: an apostrophe in a
+    # course name would end the PowerShell string and an "&" would break the
+    # XML, so both travel through the environment instead.
+    assert "3 nouveaux documents" not in cmd[-1]
+    assert kwargs["env"]["SCHOOL_TOAST_BODY"] == "3 nouveaux documents"
+    assert kwargs["env"]["SCHOOL_TOAST_TITLE"] == "Titre"
+
+
+def test_a_platform_with_no_notifier_fails_quietly(monkeypatch):
+    """Linux has no implementation here. Doing nothing is right; shelling out
+    to a program that is not installed and logging a failure is not."""
+    import subprocess as sp
+
+    from src.common import NotifyConfig, notify
+
+    calls = []
+    monkeypatch.setattr("src.common.sys.platform", "linux")
+    monkeypatch.setattr(sp, "run", lambda cmd, **kw: calls.append(cmd) or None)
+    notify("t", "m", cfg=NotifyConfig(desktop=True))
+    assert calls == []
+
+
+def test_an_old_config_still_reads_as_desktop_notifications(tmp_path):
+    """`notify: macos: true` is what every config written before the rename
+    carries, and it always meant "notify me on this desktop"."""
+    import yaml
+
+    from src.common import load_config
+
+    example = yaml.safe_load(Path("config.example.yaml").read_text(encoding="utf-8"))
+    example["notify"] = {"macos": False, "ntfy_topic": ""}
+    path = tmp_path / "config.yaml"
+    path.write_text(yaml.safe_dump(example), encoding="utf-8")
+    assert load_config(path).notify.desktop is False

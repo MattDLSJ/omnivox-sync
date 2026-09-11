@@ -11,13 +11,25 @@ semester: ""
 # The spec specifies "Cegep Automne 2026". The fall folder does not exist yet,
 # so either works — omnivox_sync creates it. Change this one line if you
 # prefer to match the existing English convention.
-base_path: "~/Documents/School/Cegep Automne 2026"
+# Where your course folders go. Empty = ~/Documents/School/Cegep <semester>,
+# worked out from the date the same way `semester:` above is. It was a fixed
+# string until a fresh install produced a folder called "Cegep Automne 2026"
+# holding notebooks called "... - Cegep Fall 2026": the year was frozen and the
+# language did not match anything around it. Set it to an absolute path here if
+# you want them somewhere else.
+base_path: ""
 
 # Filled by: .venv/bin/python -m src.omnivox_sync --discover
 courses: []
 
 # Filled once the timetable is published (Milestone 4). M4 is inert while empty.
 schedule: []
+
+# Whether the installer sets up the automatic runs at the times below.
+# Deliberately NOT nested under `schedule:` above, which is the timetable and
+# is a list: a setting written under a list is a file YAML cannot read.
+scheduling:
+  auto: true
 
 # --------------------------------------------------------------------------
 # Which Omnivox this account is on.
@@ -48,7 +60,10 @@ school:
   #   logged_in_text: "What's new"
 
 notify:
-  macos: true
+  # Desktop notifications, on whichever desktop this is: Notification Centre on
+  # a Mac, a toast on Windows. Called `macos:` until it turned out a Windows
+  # install had been running `osascript` and logging that it failed.
+  desktop: true
   # Phone push goes through ntfy.sh. The topic name is the only thing guarding
   # it, so it lives in .env as NTFY_TOPIC and this stays empty. Empty in both
   # places = Mac notifications only.

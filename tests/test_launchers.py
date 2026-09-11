@@ -71,3 +71,15 @@ def test_they_point_at_the_projects_own_python(loaded_config, monkeypatch):
     monkeypatch.setattr(launchers, "IS_WINDOWS", True)
     for path in write_launchers(loaded_config, logger=None):
         assert ".venv" in path.read_text(encoding="utf-8")
+
+
+def test_both_platforms_get_a_sign_in_button():
+    """A revoked trusted device is the failure this recovers from, and it is
+    not rare. Windows recovered with a double click; macOS required knowing to
+    type `make login`, because the code assumed `make button` had produced an
+    .app and install.py never runs it."""
+    from src.launchers import UNIX_LOGIN, UNIX_SYNC, WINDOWS_LOGIN
+
+    assert "--login" in UNIX_LOGIN and "--login" in WINDOWS_LOGIN
+    # And the window has to survive long enough to read what it said.
+    assert "read -r" in UNIX_SYNC and "read -r" in UNIX_LOGIN

@@ -74,18 +74,27 @@ QUESTIONS = [
         "tier": "onboarding",
         "macos_only": True,
         "title": "Lecture recording",
-        "lede": "Record your classes and transcribe them, so the lecture ends up in the same notebook as the slides. macOS only, and it downloads a 1.5 GB speech model once.",
+        "lede": "Record your classes and turn them into text, so the lecture ends up in the same notebook as the slides. macOS only for now.",
         "kind": "choice",
         "default": "true",
         "options": [
-            ("true", "Yes, record my lectures",
-             "You will be asked for microphone access once, during setup, and never again. It only records classes that are in your timetable, and you choose which of them are worth recording."),
+            # Every specific promise that used to be here was false. It said
+            # microphone access would be asked for during setup: nothing in
+            # install.py ever asks. It said a 1.5 GB model downloads once:
+            # nothing downloads it, you are shown a curl command afterwards.
+            # Recording also needs a timetable, and nothing in this project
+            # writes one yet. Saying "not finished" costs a sentence; being
+            # caught promising a feature that does not exist costs the trust
+            # in every other answer on this page.
+            ("true", "Yes, set it up for recording",
+             "Classes that look like lectures are marked as worth recording, so they are ready when you turn the recorder on. Finishing it needs two more steps after this page, and it will tell you what they are. Gym and stage are skipped automatically."),
             ("false", "No, skip it",
-             "Nothing is downloaded and no microphone access is requested. You can turn it on later with make settings."),
+             "Nothing is marked and nothing is set up. You can turn it on later with make settings."),
         ],
+        "note": "Recording is the one part of this that is not finished. It is off until you run the two extra steps, so choosing yes here will not surprise you with a microphone prompt.",
     },
     {
-        "key": "schedule.auto",
+        "key": "scheduling.auto",
         "tier": "onboarding",
         "title": "Run it by itself",
         "lede": "Check Omnivox three times a day without you doing anything: before class, at lunch, and after supper.",
@@ -113,16 +122,17 @@ QUESTIONS = [
         ],
     },
     {
-        "key": "notify.macos",
+        "key": "notify.desktop",
         "tier": "onboarding",
-        "macos_only": True,
         "title": "Notifications",
         "lede": "One notification per sync, covering what is new. Silence means it checked and found nothing.",
         "kind": "choice",
         "default": "true",
         "options": [
-            ("true", "Desktop notifications", "macOS only. On Windows this does nothing either way."),
-            ("false", "None", "It still writes _digest.md next to your course folders, which is the same information without the interruption."),
+            ("true", "Yes, tell me when something arrives",
+             "A normal desktop notification, the same as any other app on this computer."),
+            ("false", "None",
+             "It still writes _digest.md next to your course folders, which is the same information without the interruption."),
         ],
         "note": "For notifications on your phone instead, put a random topic name in NTFY_TOPIC in .env and subscribe to the same name in the ntfy app. Anyone who knows the name can read them, which is why it is not on this page.",
     },
@@ -270,7 +280,7 @@ def _render_form(current: dict, token: str, tier: str, problem: str = "") -> str
     parts = [
         "<h1>%s</h1>" % ("Set up your semester" if onboarding else "Settings"),
         "<p class=\"sub\">%s</p>" % (
-            "Four questions, once. Everything else has a sensible default, and "
+            "A few questions, once. Everything else has a sensible default, and "
             "<code>make settings</code> opens the rest whenever you want them."
             if onboarding else
             "Change any of these at any time. Nothing here is permanent, and "
@@ -289,9 +299,11 @@ def _render_form(current: dict, token: str, tier: str, problem: str = "") -> str
             "several colleges share a first word.</p>"
             + (f"<p class=\"warn\">{html.escape(problem)}</p>" if problem else "")
             + f"<input class=\"text\" type=\"text\" name=\"{COLLEGE_FIELD}\" "
-            "placeholder=\"e.g. Édouard-Montpetit, Ahuntsic, Vieux Montréal\" "
+            "list=\"colleges\" autocomplete=\"off\" "
+            "placeholder=\"Start typing, or type any cégep not in the list\" "
             "autofocus required>"
-            "</fieldset>"
+            + _college_suggestions()
+            + "</fieldset>"
         )
     for question in questions_for(tier, sys.platform):
         chosen = str(current.get(question["key"], question["default"]))
@@ -343,8 +355,58 @@ def _render_done(written: dict) -> str:
     )
     return (
         "<div class=\"done\"><h1>Saved.</h1>"
-        "<p class=\"sub\">You can close this tab and go back to the terminal.</p>"
-        f"<ul>{rows}</ul>{follow_ups}</div>"
+        "<p class=\"sub\">You can close this tab. The install carried on by "
+        "itself the moment you pressed save; nothing is waiting on you.</p>"
+        f"<ul>{rows}</ul>{follow_ups}{_credentials_note()}</div>"
+    )
+
+
+def _credentials_note() -> str:
+    """The sign-ins this page deliberately does not take.
+
+    Not taking them here is the right call: a web page, however local, is not
+    where a password should be typed. Saying nothing about them is not. A
+    fresh install used to finish with the textbook feature silently
+    unconfigured, and the only mention of CHENELIERE_USER anywhere in the
+    experience was an error message after somebody had already tried to use
+    it.
+    """
+    return (
+        "<div class=\"note\"><p><b>Sign-ins are not on this page, on purpose.</b> "
+        "A web page is not where a password should be typed, even a local one. "
+        "They are asked for in the terminal instead, and stored in a file that "
+        "never leaves this machine.</p>"
+        "<ul>"
+        "<li><b>Omnivox</b> is part of the install and will be asked for. "
+        "Nothing to do.</li>"
+        "<li><b>Ch\u00e9neli\u00e8re i+ Interactif</b>, only if your textbooks are "
+        "there: run <code>make setup-cheneliere</code> when you want chapters "
+        "pulled from them. Skipping it costs nothing else.</li>"
+        "</ul></div>"
+    )
+
+
+def _college_suggestions() -> str:
+    """A datalist, deliberately not a <select>.
+
+    A dropdown you can only pick from would be a promise this cannot keep:
+    the suggestions are only the colleges whose portal has actually been
+    fetched and confirmed, and there are around forty cégeps. Somebody at one
+    that is not on the list has to be able to type it and have it work, which
+    it does, because the name is resolved against the live portal rather than
+    looked up in here. So the list is a shortcut for the common case and never
+    a limit on the answer.
+    """
+    from src.portal_finder import VERIFIED
+
+    names = sorted({college for college, _ in VERIFIED.values()})
+    return (
+        "<datalist id=\"colleges\">"
+        + "".join(f"<option value=\"{html.escape(n)}\">" for n in names)
+        + "</datalist>"
+        + "<p class=\"note\">The list is the colleges already confirmed working. "
+        "Yours not being in it does not mean it is unsupported: type it in full "
+        "and it will be looked up.</p>"
     )
 
 
@@ -465,6 +527,7 @@ def serve(config_path: Path, *, tier: str = "onboarding", open_browser: bool = T
             chosen = _parse(body)
             text = config_path.read_text(encoding="utf-8")
 
+            original_text = text
             college = (posted.get(COLLEGE_FIELD) or [""])[0].strip()
             if college:
                 updated, error = _resolve_college(college, text)
@@ -482,6 +545,30 @@ def serve(config_path: Path, *, tier: str = "onboarding", open_browser: bool = T
 
             if chosen:
                 text = set_many(text, chosen)
+
+            # Never hand back a file the rest of the program cannot read. The
+            # page once wrote a setting underneath `schedule:`, which is a
+            # list, and every submission left config.yaml unparseable; the
+            # install then stopped with a message blaming the student. Saving
+            # is the last safe moment to notice, because after this line the
+            # only copy of their answers is the broken file.
+            import yaml as _yaml
+
+            try:
+                _yaml.safe_load(text)
+            except Exception as exc:  # noqa: BLE001
+                problem[0] = (
+                    "Saving those answers would have damaged your settings "
+                    f"file, so nothing was changed. This is a bug in the app, "
+                    f"not something you did. Details: {exc}"
+                )
+                values = current_values(original_text)
+                values.update({k: str(v).lower() for k, v in chosen.items()})
+                self._send(
+                    PAGE.format(body=_render_form(values, token, tier, problem[0]))
+                )
+                return
+
             config_path.write_text(text, encoding="utf-8")
             written.update(chosen)
             self._send(PAGE.format(body=_render_done(written)))
@@ -492,15 +579,25 @@ def serve(config_path: Path, *, tier: str = "onboarding", open_browser: bool = T
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
 
-    print(
+    # flush=True on every one of these, and it is not a style choice. Python
+    # buffers stdout when it is a pipe rather than a terminal, which is exactly
+    # what it is under an AI agent. The address stayed in the buffer for the
+    # whole wait, so the agent had nothing to show anybody, the person was
+    # never told where to go, nobody submitted the form, and the run died at
+    # the timeout with the address finally appearing in the flushed buffer of
+    # a process that had already given up.
+    say = lambda line: print(line, flush=True)  # noqa: E731
+    say(
         "Opening your browser to choose which features you want."
         if tier == "onboarding"
         else "Opening your settings in your browser."
     )
-    print("\n  " + url + "\n")
-    print("If no window appeared, open that address yourself.")
-    print("ANSWER IN THE BROWSER. Nothing typed anywhere else reaches this page;")
-    print("it is waiting on that form and will keep waiting until you submit it.\n")
+    say("\n  " + url + "\n")
+    say("If no window appeared, open that address yourself.")
+    say("ANSWER IN THE BROWSER. Nothing typed anywhere else reaches this page;")
+    say("it is waiting on that form and will keep waiting until you submit it.")
+    say("This command is waiting too. It needs nothing from you in the meantime")
+    say("and will carry on by itself the moment the form is submitted.\n")
     if open_browser:
         try:
             webbrowser.open(url)

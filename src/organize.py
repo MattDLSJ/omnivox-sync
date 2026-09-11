@@ -26,6 +26,8 @@ import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from src.common import user_folders
+
 #: Where course material realistically sits. Not the whole home directory: a
 #: full walk reads a lot of somebody's private filesystem for very little.
 SEARCH_DIRS = ("Downloads", "Desktop", "Documents")
@@ -98,23 +100,38 @@ class Plan:
         return out
 
 
-def candidates(home: Path, skip: list[Path]) -> list[Path]:
+def candidates(home: Path | None, skip: list[Path]) -> list[Path]:
     """Files worth looking at, outside anything this project already owns."""
     skip_resolved = [p.resolve() for p in skip]
     found = []
+    seen_roots: set[str] = set()
     for name in SEARCH_DIRS:
-        root = home / name
-        if not root.is_dir():
-            continue
-        for path in root.rglob("*"):
-            if not path.is_file() or path.suffix.lower() not in EXTENSIONS:
+        # `home / name` was the whole rule, and on Windows it is frequently
+        # the wrong folder. Documents, Desktop and Downloads are known folders
+        # that can be pointed anywhere: OneDrive's Known Folder Move does it,
+        # a school's Group Policy does it, and so does anybody who opened
+        # Properties and pressed Move. `C:\Users\<name>\Documents` stays
+        # behind as a near-empty leftover, so the scan read the empty one and
+        # reported, cheerfully, that there was nothing to file.
+        #
+        # Both are searched: the redirected folder is where files go now, and
+        # the plain one usually still holds whatever predates the redirect.
+        for root in user_folders(name, home):  # home is None in production
+            if not root.is_dir():
                 continue
-            resolved = path.resolve()
-            if any(
-                resolved == s or s in resolved.parents for s in skip_resolved
-            ):
-                continue  # already filed, or part of the project itself
-            found.append(path)
+            resolved_root = str(root.resolve())
+            if resolved_root in seen_roots:
+                continue
+            seen_roots.add(resolved_root)
+            for path in root.rglob("*"):
+                if not path.is_file() or path.suffix.lower() not in EXTENSIONS:
+                    continue
+                resolved = path.resolve()
+                if any(
+                    resolved == s or s in resolved.parents for s in skip_resolved
+                ):
+                    continue  # already filed, or part of the project itself
+                found.append(path)
     return found
 
 
@@ -166,9 +183,16 @@ def organize(cfg, *, home: Path | None = None, dry_run: bool = False,
              logger=None) -> Plan:
     """Find course files elsewhere on the machine and move them in."""
     log = logger or logging.getLogger("school.organize")
+    # `given` stays None when the caller did not pick a home, and that is not a
+    # tidiness point: user_folders only asks Windows where Documents really is
+    # when it is not handed a home to build the path from. Resolving to
+    # Path.home() here, which is what this line used to do, meant the known
+    # folder lookup ran in tests and never in production, so the scan kept
+    # reading the empty leftover C:\Users\<name>\Documents.
+    given = home
     home = home or Path.home()
     skip = [Path(cfg.base_path), Path(cfg.repo_root)]
-    files = candidates(home, skip)
+    files = candidates(given, skip)
     plan = plan_moves(files, cfg.courses, home=home)
 
     if dry_run:
@@ -186,12 +210,22 @@ def organize(cfg, *, home: Path | None = None, dry_run: bool = False,
     return plan
 
 
-def summary(plan: Plan) -> str:
+def summary(plan: Plan, *, planned: bool = False) -> str:
+    """`planned=True` for a dry run, where nothing has happened yet.
+
+    The installer shows this before moving anything now, and "Filed 57 files"
+    above a list of files still sitting in Downloads is the kind of wrong that
+    makes somebody go and check.
+    """
     if not plan.moves and not plan.unmatched:
         return "Nothing on this machine looked like course material."
     lines = []
     if plan.moves:
-        lines.append(f"Filed {len(plan.moves)} file(s) already on this machine:")
+        lines.append(
+            f"Found {len(plan.moves)} file(s) to file:"
+            if planned
+            else f"Filed {len(plan.moves)} file(s) already on this machine:"
+        )
         for folder, paths in sorted(plan.by_course().items()):
             lines.append(f"  {folder}")
             for path in paths[:8]:
@@ -200,8 +234,9 @@ def summary(plan: Plan) -> str:
                 lines.append(f"      ... and {len(paths) - 8} more")
     if plan.unmatched:
         lines.append(
-            f"\n{len(plan.unmatched)} other document(s) were left where they are, "
-            "because\nnothing in the name said which course they belong to. "
-            "Nothing was deleted."
+            f"\n{len(plan.unmatched)} other document(s) "
+            + ("will be left" if planned else "were left")
+            + " where they are, because\nnothing in the name said which course "
+            "they belong to. Nothing is ever deleted."
         )
     return "\n".join(lines)

@@ -82,12 +82,29 @@ def set_value(text: str, path: list[str], value) -> str:
         return "\n".join(lines) + "\n"
 
     parent, key = path
-    start = None
+    start, parent_line = None, None
     for index, line in enumerate(lines):
         found = _LINE.match(line)
         if found and not found.group("indent") and found.group("key") == parent:
-            start = index
+            start, parent_line = index, found
             break
+    if start is not None:
+        # A parent that already carries a value cannot also carry children.
+        # `schedule: []` is a sequence, and writing "  auto: true" under it
+        # produces a file YAML will not parse. This went out for a fortnight:
+        # the setup page posted `schedule.auto`, every submission corrupted
+        # config.yaml, and the installer then reported "no college is set" and
+        # sent the student back to redo the step that had just broken it.
+        # Guessing that the caller meant to replace the value is worse than
+        # refusing, because a config editor that rewrites what it does not
+        # understand is how a term's worth of settings gets lost.
+        carried = (parent_line.group("rest") or "").strip()
+        if carried and not carried.startswith("#"):
+            raise ConfigEditError(
+                f"{parent!r} already holds a value ({carried!r}), so {parent}.{key} "
+                f"cannot be nested under it. Either {parent!r} is the wrong key, "
+                f"or it needs to be a block in the config rather than a value."
+            )
     if start is None:
         lines.append(f"{parent}:")
         lines.append(f"  {key}: {_format(value)}")

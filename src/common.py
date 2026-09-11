@@ -82,7 +82,10 @@ class SchoolConfig:
 
 @dataclass(frozen=True)
 class NotifyConfig:
-    macos: bool = True
+    #: Desktop notifications, on whichever desktop this is. Named `macos` until
+    #: it turned out Windows had been running `osascript` for months and
+    #: logging "macOS notification failed" to a file nobody reads.
+    desktop: bool = True
     ntfy_topic: str = ""
 
 
@@ -271,8 +274,21 @@ def load_config(config_path: Path, *, repo_root: Path | None = None) -> Config:
     # is how the example avoids shipping a term name that is right for a few
     # months and then quietly wrong.
     semester = raw.get("semester") or ""
-    base_path_raw = _require(raw, "base_path", config_path.name)
-    base_path = Path(str(base_path_raw)).expanduser()
+    # Empty base_path means "work it out", for exactly the reason semester
+    # does. The example shipped "~/Documents/School/Cegep Automne 2026", which
+    # is two bugs in one line: the year is frozen, so an install in January
+    # files a winter term into a folder named Automne 2026, and the word is
+    # French while every folder the project creates around it, and the
+    # notebooks it names, are English. A fresh install produced a folder
+    # called "Automne" holding notebooks called "Fall".
+    base_path_raw = raw.get("base_path") or ""
+    if not str(base_path_raw).strip():
+        base_path = (
+            user_folder("Documents") / "School"
+            / f"Cegep {semester or default_semester()}"
+        )
+    else:
+        base_path = Path(str(base_path_raw)).expanduser()
     if not base_path.is_absolute():
         base_path = (repo_root / base_path).resolve()
 
@@ -306,7 +322,11 @@ def load_config(config_path: Path, *, repo_root: Path | None = None) -> Config:
     # tracked, but it is still the file people paste into issues and hand to an
     # AI, so the topic belongs in .env and the key here stays empty.
     notify_cfg = NotifyConfig(
-        macos=bool(notify_raw.get("macos", True)),
+        # `macos:` is what configs written before the rename carry, and it
+        # meant "desktop notifications" even then, so it is read as such.
+        desktop=bool(
+            notify_raw.get("desktop", notify_raw.get("macos", True))
+        ),
         ntfy_topic=(
             str(notify_raw.get("ntfy_topic", "") or "").strip()
             or env_value(repo_root, "NTFY_TOPIC")
@@ -438,6 +458,107 @@ DEFAULT_SYNC_TIMES = ((7, 30), (12, 15), (18, 30))
 #: Quebec cégep terms. August through December is the autumn one, January
 #: through May the winter one, and the short summer session sits between.
 _TERMS = ((8, "Fall"), (6, "Summer"), (1, "Winter"))
+
+
+#: The three folders that hold somebody's files, as Windows knows them rather
+#: than as a path built by hand.
+#:
+#: `~/Documents` is not the Documents folder on a Windows machine with OneDrive
+#: Known Folder Move turned on, which is the default on a lot of them and on
+#: every school-managed one. KFM points the Documents, Desktop and Downloads
+#: known folders at `%USERPROFILE%\OneDrive\...`, and `C:\Users\<name>\Documents`
+#: stays behind as a near-empty leftover. So a project that writes to
+#: `~/Documents` creates its folders somewhere the owner cannot find: not in
+#: the Documents they see in Explorer, not in the one synced to their phone.
+#: It was reported exactly that way, by somebody who opened Documents and found
+#: nothing there.
+_WINDOWS_FOLDER_IDS = {
+    # FOLDERID_Documents, FOLDERID_Desktop, FOLDERID_Downloads
+    "Documents": "{FDD39AD0-238F-46AF-ADB4-6C85480369C7}",
+    "Desktop": "{B4BFCC3A-DB2C-424C-B029-7FE99A87C641}",
+    "Downloads": "{374DE290-123F-4565-9164-39C4925E467B}",
+}
+
+#: Where the same three live in the registry when the API is unavailable.
+_WINDOWS_SHELL_NAMES = {
+    "Documents": "Personal",
+    "Desktop": "Desktop",
+    "Downloads": "{374DE290-123F-4565-9164-39C4925E467B}",
+}
+
+
+def _windows_known_folder(name: str) -> Path | None:
+    """Ask Windows where `name` really is. None if it will not say."""
+    guid = _WINDOWS_FOLDER_IDS.get(name)
+    if not guid:
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class _GUID(ctypes.Structure):
+            _fields_ = [
+                ("Data1", wintypes.DWORD),
+                ("Data2", wintypes.WORD),
+                ("Data3", wintypes.WORD),
+                ("Data4", ctypes.c_ubyte * 8),
+            ]
+
+        raw = guid.strip("{}").split("-")
+        tail = bytes.fromhex(raw[3] + raw[4])
+        folder_id = _GUID(
+            int(raw[0], 16), int(raw[1], 16), int(raw[2], 16),
+            (ctypes.c_ubyte * 8)(*tail),
+        )
+        out = ctypes.c_wchar_p()
+        status = ctypes.windll.shell32.SHGetKnownFolderPath(
+            ctypes.byref(folder_id), 0, None, ctypes.byref(out)
+        )
+        if status != 0 or not out.value:
+            raise OSError(f"SHGetKnownFolderPath returned {status}")
+        try:
+            return Path(out.value)
+        finally:
+            ctypes.windll.ole32.CoTaskMemFree(out)
+    except Exception:  # noqa: BLE001 - fall through to the registry
+        pass
+    try:
+        import winreg
+
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders",
+        ) as key:
+            value, _ = winreg.QueryValueEx(key, _WINDOWS_SHELL_NAMES[name])
+        expanded = os.path.expandvars(str(value))
+        return Path(expanded) if expanded and "%" not in expanded else None
+    except Exception:  # noqa: BLE001 - the caller has a sane default
+        return None
+
+
+def user_folder(name: str, home: Path | None = None) -> Path:
+    """Documents, Desktop or Downloads, as the person's file manager shows it."""
+    if sys.platform == "win32" and home is None:
+        found = _windows_known_folder(name)
+        if found:
+            return found
+    return (home or Path.home()) / name
+
+
+def user_folders(name: str, home: Path | None = None) -> list[Path]:
+    """Every place `name` might be, most authoritative first.
+
+    Both, when KFM is on: the redirected folder is where new files go, and the
+    plain one usually still holds whatever was there before the redirect
+    happened. Searching only one of them misses real coursework.
+    """
+    seen, out = set(), []
+    for candidate in (user_folder(name, home), (home or Path.home()) / name):
+        resolved = str(candidate)
+        if resolved not in seen:
+            seen.add(resolved)
+            out.append(candidate)
+    return out
 
 
 def default_semester(today=None) -> str:
@@ -665,6 +786,71 @@ def human_courses(cfg, codes) -> str:
     return ", ".join(names.get(c, c) for c in sorted(codes))
 
 
+#: Raising a toast on Windows is a WinRT call, and PowerShell is the only
+#: interpreter guaranteed to be on the machine that can make one. The app id
+#: has to be one Windows already trusts or the toast is accepted and never
+#: drawn; PowerShell's own is the standard choice and needs no registration.
+_WINDOWS_TOAST = r"""
+$ErrorActionPreference = 'Stop'
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime] | Out-Null
+[Windows.UI.Notifications.ToastNotification, Windows.UI.Notifications, ContentType=WindowsRuntime] | Out-Null
+$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(
+    [Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+$texts = $xml.GetElementsByTagName('text')
+$texts.Item(0).AppendChild($xml.CreateTextNode($env:SCHOOL_TOAST_TITLE)) | Out-Null
+$texts.Item(1).AppendChild($xml.CreateTextNode($env:SCHOOL_TOAST_BODY)) | Out-Null
+$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier(
+    '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
+).Show($toast)
+"""
+
+
+def _desktop_notification(title: str, message: str, *, alert: bool) -> None:
+    """One notification on this desktop. Raises; the caller logs and carries on.
+
+    Note what is NOT here: any attempt on Linux. Saying so is the point. The
+    previous version ran `osascript` on every platform because the flag that
+    guarded it was called `macos` and defaulted to true, so Windows spent every
+    run shelling out to a program that does not exist there and writing "macOS
+    notification failed" into a log file. An unsupported platform should do
+    nothing quietly, not fail loudly in a place nobody looks.
+    """
+    if sys.platform == "darwin":
+        sound = ' sound name "Basso"' if alert else ""
+        script = (
+            f'display notification "{_osascript_escape(message)}" '
+            f'with title "{_osascript_escape(title)}"{sound}'
+        )
+        subprocess.run(["osascript", "-e", script], check=False, timeout=10)
+        return
+
+    if sys.platform == "win32":
+        # The text goes through the environment rather than into the script.
+        # A course name with an apostrophe would otherwise end the PowerShell
+        # string, and one with an "&" would break the XML: CreateTextNode is
+        # what makes the second problem somebody else's.
+        env = {
+            **os.environ,
+            "SCHOOL_TOAST_TITLE": title,
+            "SCHOOL_TOAST_BODY": message,
+        }
+        subprocess.run(
+            [
+                "powershell", "-NoProfile", "-NonInteractive",
+                "-ExecutionPolicy", "Bypass", "-Command", _WINDOWS_TOAST,
+            ],
+            check=False,
+            timeout=15,
+            env=env,
+            # Without this a console window flashes on screen at every
+            # notification, which on a sync that reports six courses is worse
+            # than having no notifications at all.
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        return
+
+
 def notify(
     title: str,
     message: str,
@@ -696,16 +882,11 @@ def notify(
     level = "alert" if critical else level or "normal"
     priority = {"quiet": 2, "normal": 3, "alert": 4}.get(level, 3)
 
-    if cfg.macos:
-        sound = ' sound name "Basso"' if level == "alert" else ""
-        script = (
-            f'display notification "{_osascript_escape(message)}" '
-            f'with title "{_osascript_escape(title)}"{sound}'
-        )
+    if cfg.desktop:
         try:
-            subprocess.run(["osascript", "-e", script], check=False, timeout=10)
+            _desktop_notification(title, message, alert=level == "alert")
         except Exception as exc:  # noqa: BLE001 - must never abort a run
-            log.warning("macOS notification failed: %s", exc)
+            log.warning("desktop notification failed: %s", exc)
 
     if cfg.ntfy_topic:
         try:

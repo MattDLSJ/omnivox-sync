@@ -96,17 +96,37 @@ def test_every_step_is_safe_to_run_twice(installer, capsys):
     assert "left alone" in out
 
 
-def test_a_driven_run_does_not_pop_a_browser_window(installer, monkeypatch):
-    """Nobody is at that screen. Worse, running this from a test or a script
-    opened real tabs in whatever browser the machine happened to have, twice,
-    on the author's own Mac."""
+def test_the_settings_window_opens_even_when_an_agent_is_driving(installer, monkeypatch):
+    """It used to be suppressed for any non-tty run, on the reasoning that
+    nobody is at that screen. That conflated two different things. A test or a
+    script has nobody at the screen; an AI agent running a command on
+    somebody's own computer has a person sitting right in front of it.
+
+    Suppressing it meant the page never appeared. Observed on a real install:
+    the agent announced it had opened the setup page, nothing happened, the
+    user said "you havent opened anything", and it then spent three rounds
+    trying to render a localhost address inside its own in-app browser before
+    finally handing over a link."""
     calls = []
     monkeypatch.setattr(installer, "run", lambda args, **kw: calls.append(args))
     monkeypatch.setattr(installer, "step", lambda *_a: None)
+    monkeypatch.delenv("SCHOOL_NO_BROWSER", raising=False)
 
     installer.choose_settings(interactive=False)
-    assert "--no-browser" in calls[0]
+    assert "--no-browser" not in calls[0], "an agent-driven install is still on a desktop"
 
     calls.clear()
     installer.choose_settings(interactive=True)
-    assert "--no-browser" not in calls[0], "a person at the keyboard wants the window"
+    assert "--no-browser" not in calls[0]
+
+
+def test_a_script_can_still_say_it_has_no_display(installer, monkeypatch):
+    """Which is what the opt-out should always have been: explicit, from the
+    caller that actually knows, rather than guessed from a file descriptor."""
+    calls = []
+    monkeypatch.setattr(installer, "run", lambda args, **kw: calls.append(args))
+    monkeypatch.setattr(installer, "step", lambda *_a: None)
+    monkeypatch.setenv("SCHOOL_NO_BROWSER", "1")
+
+    installer.choose_settings(interactive=False)
+    assert "--no-browser" in calls[0]

@@ -47,8 +47,18 @@ def test_accents_do_not_have_to_survive_into_a_hostname():
 
 
 def test_candidate_list_stays_short():
-    """Each candidate is one request against somebody else's server."""
-    assert len(slugs("Cégep régional de Lanaudière à Terrebonne")) <= 8
+    """Each candidate is one request against somebody else's server.
+
+    Raised from 8 to 13 deliberately. At 8 the generator could not spell
+    Vanier, Dawson, Maisonneuve, Trois-Rivieres, Sainte-Foy or Marie-Victorin,
+    all of which have live portals: a student at any of them was told their
+    college "could not be worked out from the name" because this number was
+    protecting somebody else's DNS server from a lookup. Every candidate now
+    in the list earned its place by resolving a real college during a live
+    sweep of eighteen of them. The cost is also smaller than it looks: a wrong
+    hostname dies at DNS without reaching anybody, `find` stops at the first
+    hit, and the sixteen colleges in VERIFIED cost no requests at all."""
+    assert len(slugs("Cégep régional de Lanaudière à Terrebonne")) <= 13
 
 
 def test_candidates_are_not_repeated():
@@ -207,3 +217,30 @@ def test_probe_reports_the_language_with_the_college():
 def test_find_carries_the_language_through():
     got = find("Dawson", fetch=lambda url: ENGLISH)
     assert got.language == "en"
+
+
+def test_english_colleges_put_the_word_last():
+    """vaniercollege, not collegevanier. "College" is stripped as noise before
+    the candidates are built, so the typed word order is gone by then and both
+    conventions have to be generated. Live check: without this, Vanier and
+    Dawson both resolved to nothing while their portals sat there answering."""
+    assert "vaniercollege" in slugs("Vanier College")
+    assert "dawsoncollege" in slugs("Dawson College")
+
+
+def test_the_dropped_word_is_kept_whole_as_well_as_initialised():
+    """cmaisonneuve and cegeptr are the same trick at two different lengths:
+    the college's own word, dropped from the hostname, put back as a prefix.
+    Initialising it gives "cm", which belongs to somebody else."""
+    assert "cmaisonneuve" in slugs("Collège de Maisonneuve")
+    assert "cegeptr" in slugs("Cégep de Trois-Rivières")
+    assert "collegemv" in slugs("Cégep Marie-Victorin")
+
+
+def test_an_unlisted_college_is_not_an_unsupported_one():
+    """The whole point of probing. A college nobody has ever tested resolves
+    from its name, and if the name is spelled unusually the student can paste
+    the hostname itself and that resolves too."""
+    from src.portal_finder import VERIFIED
+    assert "cegepsaintjean" not in VERIFIED
+    assert slugs("cegepsaintjean")[0] == "cegepsaintjean"
