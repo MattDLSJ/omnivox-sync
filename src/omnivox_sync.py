@@ -1019,6 +1019,16 @@ def chain_downstream(
     except Exception as exc:  # noqa: BLE001 - a note is never worth a run
         log.warning("Could not write the folder notes: %s", exc)
 
+    # The buttons, beside the course folders. macOS has had a Sync School.app
+    # since the start and Windows had nothing at all, not even a mention.
+    if not dry_run:
+        try:
+            from src.launchers import write_launchers
+
+            write_launchers(cfg, logger=log)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Could not write the launchers: %s", exc)
+
     # Before the queue is written, so a refreshed _horaire.md rides out with
     # this run's documents under the same lock rather than waiting for the next.
     _run_mirror(cfg, result, dry_run, log)

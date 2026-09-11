@@ -1,0 +1,98 @@
+"""Double-clickable launchers, because Windows hides windows you did not ask for.
+
+Two problems, one answer.
+
+The first is a real Windows behaviour a tester found and named precisely: a GUI
+launched from a background or subshell process is created with SW_HIDE, so the
+Playwright sign-in window exists and is invisible. The command reports success,
+nothing appears, and the person waits for a browser that is already open where
+they cannot see it. A .cmd double-clicked from Explorer gets a real console and
+a visible window.
+
+The second is that macOS has had a "Sync School.app" sitting next to the course
+folders since the start, and Windows had nothing: no button, no mention of one.
+
+So both platforms get both launchers, next to the course folders where somebody
+will actually find them rather than inside the project.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import stat
+from pathlib import Path
+
+IS_WINDOWS = os.name == "nt"
+
+WINDOWS_SYNC = """@echo off
+title Sync School
+cd /d "{repo}"
+echo Checking Omnivox for anything new...
+echo.
+"{python}" -m src.omnivox_sync
+echo.
+echo Done. This window stays open so you can read what happened.
+pause
+"""
+
+WINDOWS_LOGIN = """@echo off
+title Sign in to Omnivox
+cd /d "{repo}"
+echo A browser window is about to open.
+echo.
+echo Type your student number and password into it. If Omnivox e-mails you a
+echo six-digit code, enter that too, and TICK "J'utilise un appareil de
+echo confiance" before you validate. Missing that box is what makes this stop
+echo working tomorrow.
+echo.
+echo Run this file by DOUBLE-CLICKING it. Windows hides windows opened by
+echo background processes, so a sign-in started any other way can be invisible.
+echo.
+"{python}" -m src.omnivox_sync --login
+echo.
+pause
+"""
+
+UNIX_SYNC = """#!/bin/sh
+# Sync School. Double-clickable from Finder if you like.
+cd "{repo}" || exit 1
+echo "Checking Omnivox for anything new..."
+"{python}" -m src.omnivox_sync
+"""
+
+
+def _python(repo: Path) -> Path:
+    return repo / (".venv/Scripts/python.exe" if IS_WINDOWS else ".venv/bin/python")
+
+
+def write_launchers(cfg, *, logger=None) -> list[Path]:
+    """Put the buttons next to the course folders. Returns what it wrote."""
+    log = logger or logging.getLogger("school.launchers")
+    repo = Path(cfg.repo_root).resolve()
+    base = Path(cfg.base_path)
+    python = _python(repo)
+    written: list[Path] = []
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+        if IS_WINDOWS:
+            files = {
+                "Sync School.cmd": WINDOWS_SYNC,
+                "Sign in to Omnivox.cmd": WINDOWS_LOGIN,
+            }
+        else:
+            # macOS already gets a real .app from make button; this is the
+            # plain-shell equivalent for anything else.
+            files = {"Sync School.command": UNIX_SYNC}
+        for name, template in files.items():
+            path = base / name
+            path.write_text(
+                template.format(repo=str(repo), python=str(python)), encoding="utf-8"
+            )
+            if not IS_WINDOWS:
+                path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP)
+            written.append(path)
+            log.info("Wrote launcher: %s", name)
+    except OSError as exc:
+        log.warning("Could not write the launchers: %s", exc)
+    return written
