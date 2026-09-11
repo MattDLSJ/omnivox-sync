@@ -2,16 +2,18 @@
 
 > ### Installing this? Start here, not with the green button.
 >
-> Paste this to an AI coding agent, both lines:
+> Send an AI coding agent this one link and nothing else:
 >
-> ```
-> Set this up for me. Clone it and follow INSTALL.md at the repository root.
-> https://github.com/MattDLSJ/omnivox-sync
-> ```
+> **https://github.com/MattDLSJ/omnivox-sync/blob/main/INSTALL.md**
 >
-> The sentence matters as much as the link. Some agents fetch a bare URL and
-> start work; others treat it as something you have merely shown them and wait
-> to be told what for. One line covers both.
+> Point it at the FILE, not at the repository. Tested on two agents: a link to
+> the repository made one of them ask "what would you like me to do with it,
+> review it, set it up, diagnose an issue?" and wait, because a repository does
+> not say what it is for. A link to a document is unambiguous, and the document
+> is a page of instructions addressed to an agent.
+>
+> If yours still waits, add one sentence: *"Set this up for me, following this
+> file."*
 >
 > That file is the whole handoff: it tells the agent how to get the code and
 > what to do next. **Clone it with git; do not download the ZIP.** A ZIP has

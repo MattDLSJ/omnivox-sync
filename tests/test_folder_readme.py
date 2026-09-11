@@ -147,13 +147,15 @@ def test_the_brief_does_not_assume_one_calendar_provider():
     assert "wrong Google account" not in section
 
 
-def test_the_front_page_sends_a_sentence_not_just_a_link():
-    """A bare URL works on some agents and not others. One fetched it and
-    began; another answered "I see the repository link, but no requested task
-    yet" and waited. The sentence costs nothing and covers both."""
+def test_the_front_page_points_at_the_file_not_the_repository():
+    """Tested on two agents. A link to the repository made one of them ask
+    "what would you like me to do with it" and wait, because a repository does
+    not say what it is for. A link to a document is unambiguous. Reverting this
+    to the tidier repository URL would break it again on that agent, silently
+    and only for some people, which is why the reason is pinned here too."""
     from pathlib import Path as _Path
 
     readme = _Path("README.md").read_text(encoding="utf-8")
-    top = readme[:1600]
-    assert "Clone it and follow INSTALL.md" in top
-    assert "wait" in top, "say why the sentence is there, or it gets trimmed later"
+    top = readme[:1800]
+    assert "blob/main/INSTALL.md" in top
+    assert "not at the repository" in top
