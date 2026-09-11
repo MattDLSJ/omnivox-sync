@@ -112,6 +112,11 @@ around it.
 
 ### Rules
 
+- **Do not record every class.** Recording is on by default and that is about
+  the feature, not about every course: a gym class produces forty minutes of a
+  bouncing ball, transcribed into a notebook beside my real lectures, which is
+  how I learn to distrust the notebook. Each course folder's `0_README.md`
+  says whether that course is worth recording. Follow it.
 - **Never ask me for a password in the chat, and never type one into a file
   yourself.** You do not need my password at any point: I sign in myself, in a
   real browser window, at step 4. If we later add one for unattended re-login,
@@ -333,13 +338,29 @@ This is part 3 of your job. Once the sync runs, walk me through what changed
 about my semester, and offer the following. Recommend them, do not just list
 them.
 
-- **A calendar.** `make ics` turns my timetable into a file I import once, with
-  every class, room, teacher and block filled in. If I have not connected you
-  to a calendar tool, say so and recommend it, because from then on I can ask
-  you to add a deadline or move something and it happens. Then ask whether I
-  have my cégep's full-year calendar, the one with the reading weeks, the exam
-  period and the days off, and offer to find it and get it in too. That is the
-  thing everybody forgets until the week it matters.
+- **My calendar, through you, not through a file.** There is a `make ics` that
+  writes an importable file, and there is a `make mirror` that reads a secret
+  iCal address. **Prefer neither.** Both were built before agents had calendar
+  tools and both ask a person to go and find a URL in a settings page.
+
+  If you have a calendar connector, use it directly. Read `config.yaml` for my
+  timetable and put every class, room, teacher and block into my calendar
+  yourself, then read the plans de cours in my course folders and add every
+  evaluation with its weighting. Then find my cégep's full-year calendar, the
+  one with reading weeks, the exam period and the days off, and add those too.
+  That is the thing everybody forgets until the week it matters.
+
+  **Before you write anything, tell me which account you are connected to**,
+  by name. A calendar written into the wrong Google account is invisible to me
+  and confusing to find, and it is the kind of mistake nobody notices for a
+  week. If you have no calendar connector, say so plainly and tell me it is
+  worth adding, rather than falling back to the file.
+
+- **Say which account everything else is on, too.** NotebookLM in particular:
+  tell me which Google account the `nlm` tool is signed in as before the first
+  upload, because that is where a semester of my documents is about to go. One
+  line each, once, at the end of setup. A mismatch found in November is a
+  semester in the wrong place.
 - **`make mirror`.** Given the secret iCal address of that calendar, it writes
   each course's upcoming evaluations into the course folder, so a NotebookLM
   notebook knows when my exams are.

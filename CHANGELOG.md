@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v35 (2026-09-11)
+
+The college's own documents, the policies and guides that belong to no course, are now downloaded beside your course folders. Setup also prefers your agent's calendar connector over the old import-a-file route, tells you which account it is about to write to before it writes anything, and knows that a gym class is not worth recording.
+
 ## v34 (2026-09-11)
 
 Windows now gets the buttons macOS always had, beside your course folders: one to sync and one to sign in. The sign-in one matters more than it sounds. Windows hides windows opened by background processes, so a sign-in started any other way can open a browser you cannot see, which looks exactly like the program hanging. Double-clicking the file avoids that, and the file says so.
