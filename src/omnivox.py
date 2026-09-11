@@ -1592,6 +1592,52 @@ class OmnivoxSession:
                 except Exception:  # noqa: BLE001
                     pass
 
+    #: The landing-page tile that opens the timetable module. It is a Skytech
+    #: service link carrying a Ref= timestamp, the same expiring shape the
+    #: document links use, so it is clicked from a freshly rendered page
+    #: rather than stored and reused.
+    _HORAIRE_LINK = "Horaire de cours"
+
+    def fetch_horaire(self, session: str) -> str:
+        """The timetable page for one session, as HTML. "" if there is none.
+
+        `session` is Omnivox's own code: the year then 1 Hiver, 2 Été, 3
+        Automne. The module offers all three of a year on a dropdown, and
+        picking the wrong one silently returns a different term's timetable,
+        which is why the caller derives it from the date rather than guessing.
+        """
+        self._home()
+        link = self.page.locator(f"a:has-text('{self._HORAIRE_LINK}')").first
+        if not link.count():
+            self.log.info("No timetable link on the landing page.")
+            return ""
+        link.click(timeout=20000)
+        self.page.wait_for_load_state("domcontentloaded", timeout=30000)
+        self.page.wait_for_timeout(1500)
+
+        picker = self.page.locator("select[name='AnSession']")
+        if picker.count():
+            available = {
+                option.get_attribute("value")
+                for option in picker.first.locator("option").all()
+            }
+            if session not in available:
+                # Better than falling back to whatever is selected: a student
+                # installing in the gap between semesters would otherwise get
+                # last term's classes written into config as though they were
+                # this term's, and the recorder would sit waiting for a class
+                # that no longer exists.
+                self.log.info(
+                    "Session %s is not offered on the timetable page (has %s).",
+                    session, ", ".join(sorted(v for v in available if v)),
+                )
+                return ""
+            picker.first.select_option(session)
+            self.page.locator("input[name='Confirm']").first.click(timeout=20000)
+            self.page.wait_for_load_state("domcontentloaded", timeout=30000)
+            self.page.wait_for_timeout(1500)
+        return self.page.content()
+
     def _absolute(self, ref: str) -> str:
         """Turn an href scraped off a LEA page into a URL that resolves.
 

@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v44 (2026-09-11)
+
+Your class timetable is now read off Omnivox automatically during setup, so lecture recording no longer needs anyone to type in when their classes are. It also picks up each course's teacher and group number while it is there, which fixes Omnivox MIO messages being filed into course folders: that matched on the teacher's name and nothing had ever filled it in, so it quietly did nothing for everyone.
+
 ## v43 (2026-09-11)
 
 Your Omnivox sign-in is now part of the setup page instead of a separate terminal prompt, so the install no longer has to stop and ask you to open a terminal. Chénelière textbook sign-in is there too, optional. Passwords are written to a file on your own computer and are never shown back on the page; leaving a box empty leaves whatever is already stored alone. Lecture recording now refuses cleanly on Windows instead of reporting a failure every minute, and the page no longer claims notifications are macOS-only, because they are not any more.
