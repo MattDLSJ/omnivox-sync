@@ -1,0 +1,20 @@
+{
+  // JSON rather than TOML: newer Wrangler features are JSON-only, and this is
+  // the shape its own docs recommend.
+  "name": "omnivox-sync-reports",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-01",
+
+  "vars": {
+    // The repository issues are filed on. Not a secret.
+    "REPO": "MattDLSJ/omnivox-sync"
+  },
+
+  // Rate limiting. Without this binding the worker still runs, and anybody who
+  // finds the URL can file issues as fast as they like.
+  "kv_namespaces": [
+    { "binding": "RATE", "id": "fc16a9cd8917489ea37ae0a09f3bf6b9" }
+  ],
+
+  "observability": { "enabled": true }
+}
