@@ -98,7 +98,10 @@ def _notify_arguments(path: Path):
     that is precisely what hid the bug: the code was read into `courses_touched`
     on one line and interpolated on the next.
     """
-    source = path.read_text()
+    # encoding, because Windows defaults to cp1252 and this file is full of
+    # French accents: without it the test dies on UnicodeDecodeError there and
+    # passes everywhere else.
+    source = path.read_text(encoding="utf-8")
     tree = ast.parse(source)
     for fn in ast.walk(tree):
         if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):

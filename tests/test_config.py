@@ -297,10 +297,10 @@ def test_an_empty_semester_is_worked_out_from_the_date():
 
     from src.common import default_semester
 
-    assert default_semester(date(2026, 9, 10)) == "Automne 2026"
-    assert default_semester(date(2027, 1, 15)) == "Hiver 2027"
-    assert default_semester(date(2027, 6, 20)) == "Été 2027"
-    assert default_semester(date(2026, 12, 31)) == "Automne 2026"
+    assert default_semester(date(2026, 9, 10)) == "Fall 2026"
+    assert default_semester(date(2027, 1, 15)) == "Winter 2027"
+    assert default_semester(date(2027, 6, 20)) == "Summer 2027"
+    assert default_semester(date(2026, 12, 31)) == "Fall 2026"
 
 
 def test_a_semester_written_by_hand_is_never_overridden(tmp_repo, sample_config_dict):
@@ -313,3 +313,22 @@ def test_a_semester_written_by_hand_is_never_overridden(tmp_repo, sample_config_
     path = tmp_repo / "config.yaml"
     path.write_text(yaml.safe_dump(data, allow_unicode=True), encoding="utf-8")
     assert load_config(path, repo_root=tmp_repo).semester == "Fall 2026"
+
+
+def test_every_generated_name_is_in_one_language():
+    """A folder called "Cegep Automne 2026" holding 3_Books, 5_MIO and a
+    _schedule.md is the mix somebody noticed and could not unsee. Either
+    language would be fine; half of each is not."""
+    from src.common import Config
+
+    defaults = Config.__dataclass_fields__
+    names = [
+        defaults["books_folder"].default,
+        defaults["communiques_folder"].default,
+        defaults["mio_folder"].default,
+        defaults["schedule_file"].default,
+        defaults["recordings_folder"].default,
+    ]
+    french = ("livres", "communiques", "horaire", "etude", "voix")
+    for name in names:
+        assert not any(word in name.lower() for word in french), name

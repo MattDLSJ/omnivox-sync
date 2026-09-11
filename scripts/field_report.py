@@ -368,10 +368,11 @@ def send(dry_run: bool) -> int:
 
 
 #: A prefilled issue URL is the difference between "go and retype all this"
-#: and one click. Browsers and servers both give up somewhere past 8k, so the
-#: body only travels this way when it is small enough to arrive intact. A
-#: silently truncated bug report is worse than no link at all.
-MAX_PREFILL = 6000
+#: and one click. 6000 was measured wrong: a ~5000 character body made GitHub's
+#: own web application answer HTTP 500, "Whoops, something went wrong", which
+#: reads to the reporter as their report being rejected. 1800 leaves room for
+#: the rest of the URL well inside what it will accept.
+MAX_PREFILL = 1800
 
 
 def _by_hand(slug: str, title: str, body: str) -> str:

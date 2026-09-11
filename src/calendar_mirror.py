@@ -52,7 +52,9 @@ from dotenv import dotenv_values
 from src.common import Config, Course
 
 ICS_URL_KEY = "SCHOOL_ICS_URL"
-MIRROR_NAME = "_horaire.md"
+#: Fallback only. The real name comes from `schedule_file` in config, so an
+#: install that already has _horaire.md keeps it and a new one gets English.
+MIRROR_NAME = "_schedule.md"
 TZ = ZoneInfo("America/Toronto")
 
 MOIS = {
@@ -466,7 +468,7 @@ def mirror(
         mine = events_for(course, events)
         if not mine:
             continue
-        path = cfg.folder_for(course) / MIRROR_NAME
+        path = cfg.folder_for(course) / getattr(cfg, "schedule_file", MIRROR_NAME)
         body = render_course(course, mine, generated=generated)
 
         # The timestamp changes every run, so compare everything but it.

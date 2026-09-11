@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v31 (2026-09-11)
+
+Fixes from the first Windows field report: Python 3.14 on Windows needs tzdata or nothing runs, a test failed on French accents there, document links are matched on their stable id rather than a URL that changes every page load, and the click that precedes a download now gives up after 3 seconds instead of 30. Also one language for the folders this creates: 3_Books, 4_Announcements, _schedule.md, and a term name to match. Existing installs keep the names they have.
+
 ## v30 (2026-09-10)
 
 Every course folder now has a 0_README.md telling an AI opened there what the automation is and what it can fetch. The case that prompted it: a session saw an empty book folder, concluded the textbook was unavailable, declined to fetch it on copyright grounds, and rebuilt the answers from slides, while the book was sitting on the student's own paid i+ Interactif account the whole time.

@@ -104,13 +104,13 @@ school_location:
 recordings_folder: "2_Voice"
 
 # Same rule, for pages pulled out of the i+ Interactif digital textbooks.
-books_folder: "3_Livres"
+books_folder: "3_Books"
 
 # Where teacher announcements are saved, one Markdown file each, beside the
 # course documents so they reach NotebookLM through the same queue. A
 # communiqué is where instructions like "se procurer l'ouvrage à la COOP"
 # actually live, and nothing else in this project ever read one.
-communiques_folder: "4_Communiques"
+communiques_folder: "4_Announcements"
 
 # Where MIO from your own teachers is saved, one file each. Only messages from
 # a teacher named in courses: above are kept; the rest of the inbox, the
@@ -118,6 +118,9 @@ communiques_folder: "4_Communiques"
 # opens a message, so nothing is marked read, which is why what gets saved is
 # the inbox preview rather than the full text.
 mio_folder: "5_MIO"
+
+# The per-course schedule the calendar mirror writes.
+schedule_file: "_schedule.md"
 
 # Save the WHOLE message rather than the preview Omnivox shows in the inbox
 # list. Off by default, and the reason is the only thing worth knowing here:

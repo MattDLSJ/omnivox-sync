@@ -143,13 +143,15 @@ class Config:
     # the same reason as 1_NotebookLM and 2_Voice: Finder compares runs of
     # digits numerically, so it sorts above the course documents instead of
     # somewhere in the middle of them.
-    books_folder: str = "3_Livres"
+    books_folder: str = "3_Books"
     # Teacher announcements, saved beside the documents. Named with a leading
     # digit for the same reason as the others: Finder compares runs of digits
     # numerically, so it sorts with them rather than into the middle of them.
-    communiques_folder: str = "4_Communiques"
+    communiques_folder: str = "4_Announcements"
     # Messages your own teachers sent you in Omnivox's internal mail.
     mio_folder: str = "5_MIO"
+    # The per-course schedule the calendar mirror writes.
+    schedule_file: str = "_schedule.md"
     # Open each teacher message for its full text. OFF by default, because
     # opening one marks it read, and a background job silently emptying
     # somebody's unread list is not a thing to do without being asked.
@@ -365,11 +367,12 @@ def load_config(config_path: Path, *, repo_root: Path | None = None) -> Config:
         sync_times=parse_sync_times(raw.get("sync_times")),
         digest_folder=digest_folder,
         recordings_folder=str(raw.get("recordings_folder", "Voice") or "Voice"),
-        books_folder=str(raw.get("books_folder", "3_Livres") or "3_Livres"),
+        books_folder=str(raw.get("books_folder", "3_Books") or "3_Books"),
         communiques_folder=str(
-            raw.get("communiques_folder", "4_Communiques") or "4_Communiques"
+            raw.get("communiques_folder", "4_Announcements") or "4_Announcements"
         ),
         mio_folder=str(raw.get("mio_folder", "5_MIO") or "5_MIO"),
+        schedule_file=str(raw.get("schedule_file", "_schedule.md") or "_schedule.md"),
         mio_full_bodies=bool((raw.get("mio") or {}).get("full_bodies", False)),
         microphone=str(raw.get("microphone", "") or ""),
         transcribe=bool(raw.get("transcribe", True)),
@@ -426,7 +429,7 @@ DEFAULT_SYNC_TIMES = ((7, 30), (12, 15), (18, 30))
 
 #: Quebec cégep terms. August through December is the autumn one, January
 #: through May the winter one, and the short summer session sits between.
-_TERMS = ((8, "Automne"), (6, "Été"), (1, "Hiver"))
+_TERMS = ((8, "Fall"), (6, "Summer"), (1, "Winter"))
 
 
 def default_semester(today=None) -> str:
@@ -438,10 +441,11 @@ def default_semester(today=None) -> str:
     into it. Nobody would notice until the folder names stopped matching what
     they were studying.
 
-    French, because Omnivox is a Quebec product and this is what the cégep
-    calendar itself calls the term. It is one line in config.yaml to write it
-    any other way, and anyone who does keeps their own version: this only
-    fills in a blank.
+    English, to match the folder names the project creates around it. Mixing
+    the two is what somebody noticed and could not unsee: "Cegep Automne 2026"
+    holding 3_Books, 5_MIO and a _schedule.md. Either language would be fine;
+    half of each is not. It is one line in config.yaml to write it any other
+    way, and anyone who does keeps their own version: this only fills a blank.
     """
     from datetime import date
 

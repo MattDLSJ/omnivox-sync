@@ -1554,8 +1554,23 @@ class OmnivoxSession:
             return self._fetch_to(doc, dest)
 
         try:
-            with self.page.expect_download(timeout=DEFAULT_TIMEOUT_MS) as download_info:
-                self.page.locator(f"a[href='{doc.ref}']").first.click()
+            # Match on the GUID, not the whole href. A LÉA document link carries
+            # a Ref timestamp and an Info crypto token that both change on every
+            # page load, so an exact href match silently stops matching the
+            # moment anything re-renders. IDDocCoursDocument is the one stable
+            # part of it.
+            #
+            # And 3 seconds, not 30. When the selector does miss, the direct
+            # fetch below is what was always going to work, and it takes under
+            # a second: the old timeout spent half a minute per document
+            # waiting for an anchor that was never coming back.
+            selector = (
+                f"a[href*='IDDocCoursDocument={doc.doc_id}']"
+                if doc.doc_id
+                else f"a[href='{doc.ref}']"
+            )
+            with self.page.expect_download(timeout=3000) as download_info:
+                self.page.locator(selector).first.click(timeout=3000)
             download_info.value.save_as(str(dest))
         except Exception as click_error:  # noqa: BLE001 - fall through to the URL strategy
             self.log.info(
