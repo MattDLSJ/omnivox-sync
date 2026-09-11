@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v42 (2026-09-11)
+
+The Omnivox sign-in now opens its own window on your screen and the install continues by itself afterwards. Before this, an install run by an AI agent stopped before signing in and asked you to open a terminal and run the installer again yourself, because a browser launched from inside an agent's process either appears somewhere you cannot see it or, on Windows, fails to start at all.
+
 ## v41 (2026-09-11)
 
 Fixes a bug that stopped the install finishing for anyone: answering the settings page wrote a setting underneath the class timetable, producing a config file nothing could read, and the installer then reported it as "no college is set" and asked you to answer the page again. Windows now gets real notifications instead of silently running a macOS command, and the notifications question appears on the Windows page at all. Course folders are created in the Documents folder your file manager actually shows, which on Windows with OneDrive is not the one built from your home directory. The settings page opens on your own screen even when an AI agent is running the install, and its address is printed immediately rather than held in a buffer until the command exits. The college field suggests as you type and can now spell six colleges it previously could not, including Vanier, Dawson and Maisonneuve. A new install no longer creates a French-named folder holding English-named notebooks. Recording no longer promises three things it does not do, and gym classes are skipped automatically. The installer says when NotebookLM cannot run, shows the files it found before moving them, and reporting works for people other than the author.

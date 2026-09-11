@@ -130,3 +130,61 @@ def test_a_script_can_still_say_it_has_no_display(installer, monkeypatch):
 
     installer.choose_settings(interactive=False)
     assert "--no-browser" in calls[0]
+
+
+def test_an_agent_driven_install_opens_a_window_instead_of_giving_instructions(
+    installer, monkeypatch, tmp_path
+):
+    """It used to stop here and print "open PowerShell yourself and run this".
+
+    That is three steps and a context switch for somebody who asked an agent
+    precisely so they would not have to do that. Worse, the reason it stopped
+    was real: an agent's process is not a desktop session, and on Windows
+    Playwright's driver reported `spawn UNKNOWN`, which is Node saying the
+    browser process could not be created in that environment at all.
+
+    The answer is to ask the OS for a window rather than to ask the person to
+    go and make one.
+    """
+    monkeypatch.setattr(installer, "IS_WINDOWS", True)
+    monkeypatch.setattr(installer.sys, "platform", "win32")
+    monkeypatch.setattr(installer, "ROOT", tmp_path)
+    monkeypatch.setattr(installer, "warn", lambda *_a: None)
+
+    seen = {}
+
+    class _Proc:
+        def wait(self, timeout=None):
+            return 0
+
+    def _popen(args, **kwargs):
+        seen.update(args=args, kwargs=kwargs)
+        return _Proc()
+
+    monkeypatch.setattr(installer.subprocess, "Popen", _popen)
+    code = installer._visible_window(["x", "--login"], what="the sign-in")
+
+    assert code == 0
+    assert seen["args"] == ["x", "--login"]
+    # A NEW console, not this process's. Inheriting the agent's is the bug,
+    # and 0 is exactly what "inherit" means, which is why the constant is
+    # spelled out in install.py rather than read off subprocess with a
+    # default of 0 on any platform that does not define it.
+    assert seen["kwargs"]["creationflags"] == 0x00000010
+
+
+def test_a_window_that_will_not_open_still_falls_back_to_instructions(
+    installer, monkeypatch, tmp_path
+):
+    """Degrading to the old hand-over is correct. Failing silently is not:
+    the person would be left with a finished-looking install and no session."""
+    monkeypatch.setattr(installer, "IS_WINDOWS", True)
+    monkeypatch.setattr(installer.sys, "platform", "win32")
+    monkeypatch.setattr(installer, "ROOT", tmp_path)
+    monkeypatch.setattr(installer, "warn", lambda *_a: None)
+
+    def _boom(args, **kwargs):
+        raise OSError("spawn UNKNOWN")
+
+    monkeypatch.setattr(installer.subprocess, "Popen", _boom)
+    assert installer._visible_window(["x"], what="the sign-in") is None
