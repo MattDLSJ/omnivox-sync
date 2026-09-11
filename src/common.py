@@ -156,6 +156,12 @@ class Config:
     # opening one marks it read, and a background job silently emptying
     # somebody's unread list is not a thing to do without being asked.
     mio_full_bodies: bool = False
+    # Install the scheduled job at the end of setup, so it runs by itself from
+    # day one rather than after somebody reads a recommendation and acts on it.
+    schedule_auto: bool = True
+    # Look through Downloads, Desktop and Documents for course files that are
+    # already on the machine, and file them. Never deletes.
+    organize_scan: bool = True
     # Which microphone to record from, matched on the name avfoundation reports
     # ("MacBook Pro Microphone"). Empty means "use the built-in". Never an
     # index: see MIC_PREFERENCE in src/recorder.py for what that cost.
@@ -374,6 +380,8 @@ def load_config(config_path: Path, *, repo_root: Path | None = None) -> Config:
         mio_folder=str(raw.get("mio_folder", "5_MIO") or "5_MIO"),
         schedule_file=str(raw.get("schedule_file", "_schedule.md") or "_schedule.md"),
         mio_full_bodies=bool((raw.get("mio") or {}).get("full_bodies", False)),
+        schedule_auto=bool((raw.get("schedule_settings") or raw.get("scheduling") or {}).get("auto", True)),
+        organize_scan=bool((raw.get("organize") or {}).get("scan", True)),
         microphone=str(raw.get("microphone", "") or ""),
         transcribe=bool(raw.get("transcribe", True)),
         transcribe_language=str(raw.get("transcribe_language", "auto") or "auto"),

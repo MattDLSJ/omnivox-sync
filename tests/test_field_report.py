@@ -176,3 +176,78 @@ def test_the_privacy_check_is_asked_to_certify(report, monkeypatch):
         field_report.send(dry_run=True)
     assert "--certify" in seen["argv"]
     assert "student number" in str(exit_info.value)
+
+
+# ---------------------------------------------------------------------------
+# The relay
+#
+# Filing an issue needs a GitHub identity, and a token cannot ship in a public
+# repo, so the fallback was a prefilled link somebody had to click. Nobody
+# clicks it. The whole feedback loop was resting on that click.
+# ---------------------------------------------------------------------------
+
+
+def test_the_relay_is_tried_before_anything_that_needs_an_account(report, monkeypatch):
+    order = []
+    report.write_text("# Field report\n\nAll answered.\n", encoding="utf-8")
+    monkeypatch.setattr(
+        field_report.check_private, "main", lambda argv: field_report.check_private.EXIT_CLEAN
+    )
+    monkeypatch.setattr(field_report, "_send_via_relay",
+                        lambda t, b: order.append("relay") or "https://x/issues/1")
+    monkeypatch.setattr(field_report, "_gh",
+                        lambda *a: order.append("gh") or pytest.fail("gh must not run"))
+
+    field_report.send(dry_run=False)
+    assert order == ["relay"]
+
+
+def test_a_relay_that_is_down_falls_through_rather_than_failing(report, monkeypatch):
+    """Three routes exist so that one being unavailable costs nothing. A relay
+    that is down must not look like the report was rejected."""
+    report.write_text("# Field report\n\nAll answered.\n", encoding="utf-8")
+    monkeypatch.setattr(
+        field_report.check_private, "main", lambda argv: field_report.check_private.EXIT_CLEAN
+    )
+    monkeypatch.setattr(field_report, "_relay_url", lambda: "https://relay.invalid")
+
+    def refuse(request, timeout=0):
+        raise OSError("connection refused")
+
+    monkeypatch.setattr(field_report.urllib.request, "urlopen", refuse)
+    _break_gh_only(monkeypatch)
+
+    with pytest.raises(SystemExit) as exit_info:
+        field_report.send(dry_run=False)
+    assert "Nothing is lost" in str(exit_info.value)
+
+
+def test_no_relay_configured_is_not_an_error(monkeypatch):
+    monkeypatch.setattr(field_report, "_relay_url", lambda: "")
+    assert field_report._send_via_relay("[field report] x", "body") == ""
+
+
+def test_a_relay_refusal_is_reported_and_falls_through(monkeypatch, capsys):
+    import io
+    import json as _json
+
+    monkeypatch.setattr(field_report, "_relay_url", lambda: "https://relay.example")
+
+    class Answer(io.BytesIO):
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    monkeypatch.setattr(
+        field_report.urllib.request, "urlopen",
+        lambda request, timeout=0: Answer(
+            _json.dumps({"ok": False, "reason": "rate limited, try later"}).encode()
+        ),
+    )
+    assert field_report._send_via_relay("[field report] x", "body") == ""
+    assert "rate limited" in capsys.readouterr().out
+
+
+def test_the_prefill_stays_under_what_github_will_accept():
+    """6000 made GitHub's own web application answer HTTP 500, which reads to
+    the reporter as their report being rejected."""
+    assert field_report.MAX_PREFILL <= 2000

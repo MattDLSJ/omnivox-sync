@@ -1,0 +1,14 @@
+name = "omnivox-sync-reports"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+# The repository issues are filed on. Not a secret.
+REPO = "MattDLSJ/omnivox-sync"
+
+# Rate limiting lives here. Create it once with:
+#   npx wrangler kv namespace create RATE
+# then paste the id it prints below and uncomment.
+# [[kv_namespaces]]
+# binding = "RATE"
+# id = "paste-the-id-here"

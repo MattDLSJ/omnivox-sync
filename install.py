@@ -382,6 +382,70 @@ def first_sync() -> None:
     run([str(VENV_PYTHON), "-m", "src.omnivox_sync"])
 
 
+def schedule_it() -> None:
+    """Install the scheduled job, if the settings page said so.
+
+    At the end of setup rather than as a recommendation afterwards. A setup
+    that finishes with "next steps" is a setup where the next steps do not
+    happen: the person is done, the window is closed, and the thing that was
+    supposed to run three times a day never runs at all.
+    """
+    sys.path.insert(0, str(ROOT))
+    from src.common import load_config
+
+    try:
+        cfg = load_config(ROOT / "config.yaml", repo_root=ROOT)
+    except Exception:  # noqa: BLE001
+        return
+    if not getattr(cfg, "schedule_auto", True):
+        ok("not scheduling, because you asked for it to stay manual")
+        return
+
+    step("Setting it to run by itself")
+    if IS_WINDOWS:
+        _schedule_windows(cfg)
+    else:
+        got = run(["./scripts/install_launchd.sh", "install"])
+        if got.returncode == 0:
+            ok("installed. It will check " + _times(cfg))
+        else:
+            warn("could not install the scheduled job. Run: make install-launchd")
+
+
+def _times(cfg) -> str:
+    return ", ".join(f"{h:02d}:{m:02d}" for h, m in cfg.sync_times)
+
+
+def _schedule_windows(cfg) -> None:
+    """One Task Scheduler entry per sync time.
+
+    Separate tasks rather than one with a repeat interval: /RI needs a
+    duration window and gets the last run of the day wrong, and three plainly
+    named tasks are three things somebody can see and delete.
+    """
+    python = str(VENV_PYTHON)
+    made = 0
+    for hour, minute in cfg.sync_times:
+        name = f"OmnivoxSync_{hour:02d}{minute:02d}"
+        got = run([
+            "schtasks", "/Create", "/F",
+            "/TN", name,
+            "/TR", f'"{python}" -m src.omnivox_sync',
+            "/SC", "DAILY",
+            "/ST", f"{hour:02d}:{minute:02d}",
+        ], capture_output=True, text=True)
+        if got.returncode == 0:
+            made += 1
+        else:
+            warn(f"could not create {name}: {(got.stderr or '').strip()[:120]}")
+    if made:
+        ok(f"{made} scheduled task(s) created. It will check " + _times(cfg))
+        ok("Remove them any time with: schtasks /Delete /TN OmnivoxSync_0730 /F")
+    else:
+        warn("no scheduled tasks were created. Windows may need this window")
+        warn("to be running as administrator.")
+
+
 def finish() -> None:
     print("\n" + "=" * 66)
     print("Done. What you have now:")
@@ -438,6 +502,7 @@ def main(argv: list[str]) -> int:
     sign_in()
     ensure_credentials()
     first_sync()
+    schedule_it()
     finish()
     return 0
 

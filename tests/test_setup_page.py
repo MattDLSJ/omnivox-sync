@@ -41,16 +41,34 @@ def config(tmp_path):
     return path
 
 
-def test_onboarding_asks_three_questions_and_no_more():
-    """The budget is three. Every question added here is one more thing
-    between somebody and their first working sync, so this is a real limit
-    rather than a note in a docstring."""
-    assert len(questions_for("onboarding")) == 3
+def test_every_onboarding_question_defaults_to_the_feature_being_on():
+    """The rule that replaced the three-question budget.
+
+    A setup that ends with "next steps and recommendations" is a setup where
+    the next steps do not happen: the person is done, the window is closed,
+    and the thing that was supposed to run three times a day never runs. So
+    everything is configured here, and everything arrives switched on. Turning
+    something off is one click; going and finding it afterwards is not.
+    """
+    off = {
+        "notebooklm.mode": "off",
+        "transcribe": "false",
+        "schedule.auto": "false",
+        "organize.scan": "false",
+        "notify.macos": "false",
+    }
+    for question in questions_for("onboarding", "darwin"):
+        assert question["default"] != off.get(question["key"]), (
+            f'{question["key"]} arrives switched off'
+        )
 
 
-def test_onboarding_asks_only_what_cannot_be_guessed():
-    keys = {q["key"] for q in questions_for("onboarding")}
-    assert keys == {"notebooklm.mode", "transcribe", "notify.macos"}
+def test_onboarding_covers_everything_that_needs_deciding():
+    keys = {q["key"] for q in questions_for("onboarding", "darwin")}
+    assert keys == {
+        "notebooklm.mode", "transcribe", "schedule.auto",
+        "organize.scan", "notify.macos",
+    }
 
 
 def test_settings_shows_everything_including_the_onboarding_three():
@@ -299,9 +317,9 @@ def test_the_ones_that_do_work_are_still_asked_on_windows():
     assert "notebooklm.mode" in keys
 
 
-def test_macos_gets_all_of_them():
+def test_macos_gets_the_ones_windows_cannot_use():
     keys = {q["key"] for q in questions_for("onboarding", "darwin")}
-    assert keys == {"notebooklm.mode", "transcribe", "notify.macos"}
+    assert {"transcribe", "notify.macos"} <= keys
 
 
 def test_folder_colours_are_not_offered_off_macos():

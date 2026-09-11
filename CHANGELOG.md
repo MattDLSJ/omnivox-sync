@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v32 (2026-09-11)
+
+Setting up now decides instead of recommending. Scheduling, finding the course files you already have, lecture recording and notifications are all questions on the settings page and all arrive switched on, and the installer installs the scheduled job itself rather than telling you how. Reports also file themselves now through a relay, so nobody has to have a GitHub account or click a prefilled link.
+
 ## v31 (2026-09-11)
 
 Fixes from the first Windows field report: Python 3.14 on Windows needs tzdata or nothing runs, a test failed on French accents there, document links are matched on their stable id rather than a URL that changes every page load, and the click that precedes a download now gives up after 3 seconds instead of 30. Also one language for the folders this creates: 3_Books, 4_Announcements, _schedule.md, and a term name to match. Existing installs keep the names they have.

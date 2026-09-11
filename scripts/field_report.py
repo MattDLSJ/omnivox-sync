@@ -35,6 +35,7 @@ import platform
 import subprocess
 import sys
 import urllib.parse
+import urllib.request
 from datetime import date
 from pathlib import Path
 
@@ -234,6 +235,44 @@ def _patch() -> str:
     return "\n".join(out)
 
 
+#: Where reports go when the reporter has no GitHub account, which is most of
+#: them. Set once, per checkout, with:
+#:     git config report.relay https://<your-worker>.workers.dev
+#: Empty is fine: everything below still works, it just needs more of the
+#: person.
+def _relay_url() -> str:
+    return _git("config", "--get", "report.relay", check=False)
+
+
+def _send_via_relay(title: str, body: str) -> str:
+    """File the report through the maintainer's relay. Returns the issue URL.
+
+    Returns "" on any failure, deliberately quietly: this is the first of
+    three routes, and a relay that is down or rate limited must fall through
+    to gh rather than look like the report was rejected.
+    """
+    url = _relay_url()
+    if not url:
+        return ""
+    payload = json.dumps({"title": title, "body": body}).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            answer = json.loads(response.read().decode("utf-8", errors="replace"))
+    except Exception as exc:  # noqa: BLE001 - fall through to gh
+        print(f"    (the report relay did not answer: {exc}; trying GitHub directly)")
+        return ""
+    if not answer.get("ok"):
+        print(f"    (the relay refused it: {answer.get('reason') or answer.get('error')})")
+        return ""
+    return str(answer.get("url") or "filed")
+
+
 def _gh(*args: str) -> subprocess.CompletedProcess:
     """Run gh, and treat "not installed" as a failure rather than a crash.
 
@@ -351,6 +390,14 @@ def send(dry_run: bool) -> int:
     title = f"[field report] {platform.system()} / {_portal().split(' (')[0]} / {_release()}"
     if dry_run:
         print(f"\n[dry-run] would open an issue on {slug} titled:\n  {title}")
+        return 0
+
+    # The relay first, because it needs nothing from the reporter. gh needs a
+    # GitHub account and a sign-in, and the link at the end needs somebody to
+    # click it, which is the step reports actually die at.
+    sent = _send_via_relay(title, text)
+    if sent:
+        print(f"\nSent.\n  {sent}\n\nDelete {REPORT.name} once you are done with it.")
         return 0
 
     got = _gh("issue", "create", "--repo", slug, "--title", title,
