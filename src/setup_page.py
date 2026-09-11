@@ -54,6 +54,50 @@ TIMEOUT_S = 1800
 #: `_resolve_college` rather than through the option-matching in `_parse`.
 COLLEGE_FIELD = "__college"
 
+#: Sign-ins, taken on this page rather than at a terminal prompt.
+#:
+#: This page used to refuse them, on the reasoning that a web page is not
+#: where a password should be typed. That reasoning does not survive looking
+#: at what is actually on either side. The page is served on 127.0.0.1, by
+#: this process, behind a single-use token, and the password lands in exactly
+#: the same .env either way. The terminal prompt was not safer; it was one
+#: more step, and it needed a terminal, which an agent-driven install does not
+#: have. That last part is the real cost: it was a place the install had to
+#: stop and ask somebody to go and open PowerShell.
+#:
+#: Write-only. The values are never rendered back into the form, so a second
+#: visit shows empty boxes rather than a password in the page source.
+CREDENTIAL_FIELDS = (
+    {
+        "field": "__omnivox_user",
+        "env": "OMNIVOX_USER",
+        "label": "Student number",
+        "kind": "text",
+        "group": "omnivox",
+    },
+    {
+        "field": "__omnivox_pass",
+        "env": "OMNIVOX_PASS",
+        "label": "Omnivox password",
+        "kind": "password",
+        "group": "omnivox",
+    },
+    {
+        "field": "__cheneliere_user",
+        "env": "CHENELIERE_USER",
+        "label": "Chénelière e-mail",
+        "kind": "text",
+        "group": "cheneliere",
+    },
+    {
+        "field": "__cheneliere_pass",
+        "env": "CHENELIERE_PASS",
+        "label": "Chénelière password",
+        "kind": "password",
+        "group": "cheneliere",
+    },
+)
+
 QUESTIONS = [
     {
         "key": "notebooklm.mode",
@@ -323,10 +367,11 @@ def _render_form(current: dict, token: str, tier: str, problem: str = "") -> str
     if sys.platform != "darwin":
         parts.append(
             "<fieldset><legend>Not on this operating system</legend>"
-            "<p class=\"lede\">Two things are left out because they do nothing "
-            "here rather than because you would not want them. Lecture "
-            "recording is macOS only. Desktop notifications go through a macOS "
-            "command that does not exist on Windows or Linux.</p>"
+            "<p class=\"lede\">Lecture recording is left out because it does "
+            "nothing here rather than because you would not want it: it "
+            "captures audio through a macOS-only interface, and the Windows "
+            "one has not been written. Notifications are not in this list any "
+            "more; they work here.</p>"
             "<p class=\"note\"><strong>You can still get notified on your "
             "phone.</strong> That works on every platform. Put any random word "
             "nobody would guess in <code>NTFY_TOPIC</code> in the "
@@ -336,8 +381,71 @@ def _render_form(current: dict, token: str, tier: str, problem: str = "") -> str
             "so it belongs in the file that never leaves your machine.</p>"
             "</fieldset>"
         )
+    parts.append(_render_credentials())
     parts.append("<button type=\"submit\">Save these choices</button></form>")
     return "".join(parts)
+
+
+def _store_credentials(posted: dict, repo_root: Path) -> list[str]:
+    """Write any sign-in that was filled in. Returns the names it stored.
+
+    Empty is not "clear it": somebody opening `make settings` to change a sync
+    time would otherwise wipe their Omnivox password by not retyping it into a
+    box that, by design, shows nothing.
+    """
+    sys.path.insert(0, str(repo_root))
+    try:
+        from scripts.set_env import write_key
+    except Exception:  # noqa: BLE001 - settings must still save without it
+        return []
+
+    stored = []
+    for spec in CREDENTIAL_FIELDS:
+        value = (posted.get(spec["field"]) or [""])[0]
+        if not value.strip():
+            continue
+        try:
+            write_key(spec["env"], value.strip(), env=repo_root / ".env")
+        except Exception:  # noqa: BLE001
+            continue
+        stored.append(spec["env"])
+    return stored
+
+
+def _render_credentials() -> str:
+    """The sign-in boxes. Never pre-filled, on purpose: see CREDENTIAL_FIELDS."""
+    def boxes(group: str) -> str:
+        out = []
+        for spec in CREDENTIAL_FIELDS:
+            if spec["group"] != group:
+                continue
+            out.append(
+                "<label class=\"field\"><span>%s</span>"
+                "<input class=\"text\" type=\"%s\" name=\"%s\" "
+                "autocomplete=\"off\" spellcheck=\"false\"></label>"
+                % (html.escape(spec["label"]), spec["kind"], spec["field"])
+            )
+        return "".join(out)
+
+    return (
+        "<fieldset><legend>Sign in to Omnivox</legend>"
+        "<p class=\"lede\">The same student number and password you use on the "
+        "Omnivox site. They are written to a file called <code>.env</code> "
+        "inside this folder, on this computer, and are never sent anywhere "
+        "except to Omnivox itself when it signs in for you.</p>"
+        + boxes("omnivox")
+        + "<p class=\"note\">Leave these empty if you would rather be asked "
+        "later. The sync can still run, but it will have to ask you to sign in "
+        "again by hand every few weeks instead of doing it quietly.</p>"
+        "</fieldset>"
+        "<fieldset><legend>Textbooks, if yours are on Chénelière</legend>"
+        "<p class=\"lede\">Only for i+ Interactif, the Chénelière digital "
+        "textbook site. It can pull the pages a teacher assigns into the right "
+        "course folder. Leave both empty if your books are somewhere else, or "
+        "on paper: nothing else changes.</p>"
+        + boxes("cheneliere")
+        + "</fieldset>"
+    )
 
 
 def _render_done(written: dict) -> str:
@@ -372,17 +480,11 @@ def _credentials_note() -> str:
     it.
     """
     return (
-        "<div class=\"note\"><p><b>Sign-ins are not on this page, on purpose.</b> "
-        "A web page is not where a password should be typed, even a local one. "
-        "They are asked for in the terminal instead, and stored in a file that "
-        "never leaves this machine.</p>"
-        "<ul>"
-        "<li><b>Omnivox</b> is part of the install and will be asked for. "
-        "Nothing to do.</li>"
-        "<li><b>Ch\u00e9neli\u00e8re i+ Interactif</b>, only if your textbooks are "
-        "there: run <code>make setup-cheneliere</code> when you want chapters "
-        "pulled from them. Skipping it costs nothing else.</li>"
-        "</ul></div>"
+        "<div class=\"note\"><p>Anything you typed under Sign in was written to "
+        "<code>.env</code> in the project folder, on this computer. Nothing "
+        "was sent anywhere. If you left a box empty it was left alone rather "
+        "than cleared, so coming back here to change one setting cannot lose "
+        "you a password.</p></div>"
     )
 
 
@@ -571,6 +673,13 @@ def serve(config_path: Path, *, tier: str = "onboarding", open_browser: bool = T
 
             config_path.write_text(text, encoding="utf-8")
             written.update(chosen)
+            # Credentials go to .env, never to config.yaml, and only the NAME
+            # of what was stored reaches the confirmation page. Echoing the
+            # value back would put a password in the page source, in the
+            # browser's back-forward cache, and in any screenshot of the
+            # "Saved" screen.
+            for name in _store_credentials(posted, config_path.parent):
+                written[name] = "saved"
             self._send(PAGE.format(body=_render_done(written)))
             finished.set()
 

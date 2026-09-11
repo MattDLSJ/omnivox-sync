@@ -392,3 +392,59 @@ def test_the_college_field_suggests_without_restricting():
     assert "Édouard-Montpetit" in body and "Vanier College" in body
     # The input is still free text, and still required.
     assert f'type="text" name="{COLLEGE_FIELD}"' in body
+
+
+def test_a_password_typed_on_the_page_reaches_env_and_nowhere_else(tmp_path):
+    """The page used to refuse credentials, on the reasoning that a web page
+    is not where a password should be typed. It is served on 127.0.0.1 by the
+    process that wants the password, behind a single-use token, and the value
+    lands in the same .env either way; the terminal prompt was not safer, it
+    was one more step and it needed a terminal an agent-driven install does
+    not have.
+
+    What DOES matter is that it only goes to .env: never into config.yaml,
+    which is committed-shaped and readable, and never back into the HTML,
+    which lives in the browser's cache and in any screenshot of this screen."""
+    from src.setup_page import _store_credentials
+
+    (tmp_path / ".env").write_text("EXISTING=keepme\n", encoding="utf-8")
+    stored = _store_credentials(
+        {
+            "__omnivox_user": ["1234567"],
+            "__omnivox_pass": ["hunter2-not-real"],
+            "__cheneliere_user": [""],
+        },
+        tmp_path,
+    )
+    body = (tmp_path / ".env").read_text(encoding="utf-8")
+
+    assert set(stored) == {"OMNIVOX_USER", "OMNIVOX_PASS"}
+    assert "OMNIVOX_PASS=hunter2-not-real" in body
+    assert "EXISTING=keepme" in body, "writing one key must not disturb the others"
+    assert "CHENELIERE_USER" not in body, "an empty box is not an instruction"
+
+
+def test_the_saved_screen_never_shows_what_was_typed(tmp_path):
+    """Echoing it back would put a password in the page source, in the
+    browser's back-forward cache, and in any screenshot of this screen."""
+    from src.setup_page import _render_done, _store_credentials
+
+    (tmp_path / ".env").write_text("", encoding="utf-8")
+    names = _store_credentials(
+        {"__omnivox_user": ["1234567"], "__omnivox_pass": ["hunter2-not-real"]},
+        tmp_path,
+    )
+    page = _render_done({n: "saved" for n in names})
+    assert "hunter2-not-real" not in page
+    assert "1234567" not in page
+    assert "OMNIVOX_PASS" in page, "it should still confirm that it stored one"
+
+
+def test_the_form_never_pre_fills_a_password(tmp_path):
+    """A second visit must show empty boxes, not the stored value rendered
+    into HTML. Which is also why an empty box means "leave it alone"."""
+    from src.setup_page import _render_form
+
+    body = _render_form({"__omnivox_pass": "hunter2-not-real"}, "tok", "onboarding", "")
+    assert "hunter2-not-real" not in body
+    assert 'type="password"' in body
