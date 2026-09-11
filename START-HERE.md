@@ -343,15 +343,19 @@ them.
   iCal address. **Prefer neither.** Both were built before agents had calendar
   tools and both ask a person to go and find a URL in a settings page.
 
-  If you have a calendar connector, use it directly. Read `config.yaml` for my
-  timetable and put every class, room, teacher and block into my calendar
-  yourself, then read the plans de cours in my course folders and add every
-  evaluation with its weighting. Then find my cégep's full-year calendar, the
+  If you have a calendar tool of any kind, use it directly. It does not matter
+  whose: Google, Microsoft, Apple. Read `config.yaml` for my timetable and put
+  every class, room, teacher and block into my calendar yourself, then read the
+  plans de cours in my course folders and add every evaluation with its
+  weighting. Then find my cégep's full-year calendar, the
   one with reading weeks, the exam period and the days off, and add those too.
   That is the thing everybody forgets until the week it matters.
 
   **Before you write anything, tell me which account you are connected to**,
-  by name. A calendar written into the wrong Google account is invisible to me
+  by name, and which calendar inside it. Google, Microsoft, Apple or anything
+  else: this does not care which, and neither should you. A cégep hands out an
+  Outlook address, so Microsoft is at least as likely as Google here. What
+  matters is that a calendar written into the wrong account is invisible to me
   and confusing to find, and it is the kind of mistake nobody notices for a
   week.
 

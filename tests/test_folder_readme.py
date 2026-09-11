@@ -132,3 +132,16 @@ def test_the_note_tells_the_reader_which_one_this_is(loaded_config):
     assert "Do not record this one" not in course_readme(
         loaded_config, lecture, Path("/x")
     )
+
+
+def test_the_brief_does_not_assume_one_calendar_provider():
+    """A cégep hands out an Outlook address, and a tester connected Microsoft
+    because the free tier of their agent had no Google support. Naming one
+    provider makes the other look unsupported when nothing here cares."""
+    from pathlib import Path as _Path
+
+    brief = _Path("START-HERE.md").read_text(encoding="utf-8")
+    start = brief.index("My calendar, through you")
+    section = brief[start:start + 2200]
+    assert "Microsoft" in section, "the alternative has to be named to be believed"
+    assert "wrong Google account" not in section

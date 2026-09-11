@@ -472,7 +472,8 @@ Optional. With no Chenelière credentials in `.env` the step simply does not run
 ## Calendar
 
 `make ics` writes the semester's schedule out as an `.ics` file from
-`schedule:` and the term dates, so it can be imported into Google Calendar or
+`schedule:` and the term dates, so it can be imported into any calendar that
+takes an `.ics`, which is all of them: Google Calendar, Outlook, Apple Calendar or
 anything else. It is a one-way export: the calendar is never read back.
 
 `make mirror` goes the other way. Given `SCHOOL_ICS_URL` in `.env` (the secret
