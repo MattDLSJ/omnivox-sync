@@ -2,9 +2,16 @@
 
 > ### Installing this? Start here, not with the green button.
 >
-> Give this link to an AI coding agent and let it work:
+> Paste this to an AI coding agent, both lines:
 >
-> **https://github.com/MattDLSJ/omnivox-sync/blob/main/INSTALL.md**
+> ```
+> Set this up for me. Clone it and follow INSTALL.md at the repository root.
+> https://github.com/MattDLSJ/omnivox-sync
+> ```
+>
+> The sentence matters as much as the link. Some agents fetch a bare URL and
+> start work; others treat it as something you have merely shown them and wait
+> to be told what for. One line covers both.
 >
 > That file is the whole handoff: it tells the agent how to get the code and
 > what to do next. **Clone it with git; do not download the ZIP.** A ZIP has
