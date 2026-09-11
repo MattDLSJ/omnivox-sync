@@ -1007,6 +1007,18 @@ def chain_downstream(
     """
     log = logger or logging.getLogger("school.omnivox_sync")
 
+    # A note in every course folder saying what the automation can do, because
+    # a session opened in one of those folders cannot otherwise know. Twice a
+    # session concluded a textbook was unavailable, once on copyright grounds,
+    # while `make books` could have fetched it from an account the student
+    # pays for.
+    try:
+        from src.folder_readme import write_readmes
+
+        write_readmes(cfg, dry_run=dry_run, logger=log)
+    except Exception as exc:  # noqa: BLE001 - a note is never worth a run
+        log.warning("Could not write the folder notes: %s", exc)
+
     # Before the queue is written, so a refreshed _horaire.md rides out with
     # this run's documents under the same lock rather than waiting for the next.
     _run_mirror(cfg, result, dry_run, log)

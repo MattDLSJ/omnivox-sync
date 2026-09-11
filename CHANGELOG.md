@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v30 (2026-09-10)
+
+Every course folder now has a 0_README.md telling an AI opened there what the automation is and what it can fetch. The case that prompted it: a session saw an empty book folder, concluded the textbook was unavailable, declined to fetch it on copyright grounds, and rebuilt the answers from slides, while the book was sitting on the student's own paid i+ Interactif account the whole time.
+
 ## v29 (2026-09-10)
 
 Fixes MIO saving the wrong message under the right name. Messages were opened by position, and reading one shifts the positions of the rest, so each opened its neighbour's contents: a teacher's name ended up above a stranger's message in that teacher's folder. They are addressed by id now. Also stops opening the whole inbox to keep a handful of it, which was most of the time a sync took.
