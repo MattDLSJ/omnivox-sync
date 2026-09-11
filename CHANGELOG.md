@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v38 (2026-09-11)
+
+What you send somebody is now a sentence plus the link rather than the link alone. Some agents fetch a bare URL and get to work; others treat it as something you have merely shown them and wait to be told what for, which looks like the project is broken when it is not.
+
 ## v37 (2026-09-11)
 
 The calendar step no longer assumes Google. Microsoft, Apple or anything else works the same way, and a cegep Outlook address makes Microsoft at least as likely for a student. The file it writes as a fallback imports into all of them.

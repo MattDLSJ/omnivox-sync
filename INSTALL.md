@@ -2,7 +2,12 @@
 
 **This file is the whole handoff.** Give an AI coding agent this file, or the
 link to it, and it has everything it needs to get from nothing to a working
-install. It is deliberately short; the long brief is `START-HERE.md`, inside
+install.
+
+If you are the person sending it, send a sentence with the link rather than the
+link alone: *"Set this up for me. Clone it and follow INSTALL.md at the
+repository root."* Some agents fetch a bare URL and begin; others treat it as
+something you have shown them and wait to be told what for. It is deliberately short; the long brief is `START-HERE.md`, inside
 the repository, and you read that once you have the repository.
 
 ---

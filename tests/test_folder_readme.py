@@ -145,3 +145,15 @@ def test_the_brief_does_not_assume_one_calendar_provider():
     section = brief[start:start + 2200]
     assert "Microsoft" in section, "the alternative has to be named to be believed"
     assert "wrong Google account" not in section
+
+
+def test_the_front_page_sends_a_sentence_not_just_a_link():
+    """A bare URL works on some agents and not others. One fetched it and
+    began; another answered "I see the repository link, but no requested task
+    yet" and waited. The sentence costs nothing and covers both."""
+    from pathlib import Path as _Path
+
+    readme = _Path("README.md").read_text(encoding="utf-8")
+    top = readme[:1600]
+    assert "Clone it and follow INSTALL.md" in top
+    assert "wait" in top, "say why the sentence is there, or it gets trimmed later"
