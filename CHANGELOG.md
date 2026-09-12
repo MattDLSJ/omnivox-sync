@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v45 (2026-09-11)
+
+The calendar an AI assistant builds for you now follows a written set of conventions instead of whatever it decides on the day, and they are the same ones the built-in .ics export has always used: the classroom as the event location so it shows in the reminder, the course icon and class number in the title, evaluations coloured grape with their weighting in the title, and one event per meeting rather than a weekly repeat, because a cegep term has day swaps and cancelled days that a repeating event gets silently wrong.
+
 ## v44 (2026-09-11)
 
 Your class timetable is now read off Omnivox automatically during setup, so lecture recording no longer needs anyone to type in when their classes are. It also picks up each course's teacher and group number while it is there, which fixes Omnivox MIO messages being filed into course folders: that matched on the teacher's name and nothing had ever filled it in, so it quietly did nothing for everyone.

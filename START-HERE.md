@@ -367,6 +367,14 @@ them.
   one with reading weeks, the exam period and the days off, and add those too.
   That is the thing everybody forgets until the week it matters.
 
+  **Read `docs/calendar.md` first and follow it.** It is short, and it is the
+  shape this calendar has had for three semesters: what goes in the title, why
+  the location is the classroom and not the college's address, the description
+  layout, how evaluations are marked, and the several ways a cégep term is not
+  a weekly repeat. Do not invent your own format. `make ics` already produces
+  exactly that shape, so a calendar you build differently means the two halves
+  of this project disagree about what a class looks like.
+
   **Before you write anything, tell me which account you are connected to**,
   by name, and which calendar inside it. Google, Microsoft, Apple or anything
   else: this does not care which, and neither should you. A cégep hands out an
