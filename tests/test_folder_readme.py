@@ -198,3 +198,37 @@ def test_the_agent_is_told_not_to_open_the_page_in_its_own_browser():
         body = _Path(name).read_text(encoding="utf-8")
         assert "Do not open it yourself" in body, name
         assert "127.0.0.1" in body, f"{name} must name what to paste when it fails"
+
+
+def test_the_calendar_conventions_are_written_down_and_pointed_at():
+    """`make ics` has encoded this shape since 2025: the icon-and-number title,
+    the classroom as the location, the five header lines, the three working
+    headings, the ten-minute popup. An agent with a calendar connector was
+    told to "put every class in" and left to invent the rest, so the same
+    project produced two different-looking calendars depending on which path
+    somebody took."""
+    from pathlib import Path as _Path
+
+    doc = _Path("docs/calendar.md").read_text(encoding="utf-8")
+    for rule in ("Local", "colorId", "À faire / Devoirs", "<br>", "/Lu", "EHR"):
+        assert rule in doc, f"docs/calendar.md must cover {rule!r}"
+    assert "docs/calendar.md" in _Path("START-HERE.md").read_text(encoding="utf-8")
+
+
+def test_the_written_conventions_match_what_the_exporter_does():
+    """The doc tells an agent to match `make ics`. If the exporter changes and
+    the doc does not, the doc becomes the wrong instruction rather than a
+    stale one, which is worse."""
+    from pathlib import Path as _Path
+
+    from src.calendar_export import _header_lines
+
+    class _Course:
+        code, folder, teacher, group = "202-201-EM", "Histoire", "Bruno Lacasse", "1100"
+
+    lines = _header_lines(_Course(), "Z016", "T")
+    assert lines[1] == "202-201-EM gr.1100"
+    assert lines[2] == "Local Z016    T", "four spaces before the block letter"
+    assert lines[-1] == "Présentiel"
+    doc = _Path("docs/calendar.md").read_text(encoding="utf-8")
+    assert "Local Z016    T" in doc, "the doc's example must be the real format"
