@@ -495,6 +495,29 @@ def _report_adapted_services(cfg, session, log) -> str:
     return text
 
 
+def _read_book_pages(cfg, log) -> int:
+    """Give every scraped textbook chapter a readable .txt beside it.
+
+    Backfill, for the chapters pulled before this existed. New ones get theirs
+    at download time. Cheap to re-run: a chapter that already has a sidecar,
+    or that has a real text layer of its own, is skipped without being opened.
+    """
+    from src.book_text import ensure_text
+
+    made = 0
+    for course in cfg.courses:
+        folder = cfg.folder_for(course) / cfg.books_folder
+        if not folder.is_dir():
+            continue
+        for pdf in sorted(folder.glob("*.pdf")):
+            try:
+                if ensure_text(pdf, logger=log):
+                    made += 1
+            except Exception as exc:  # noqa: BLE001 - never worth a run
+                log.warning("Could not read %s: %s", pdf.name, exc)
+    return made
+
+
 def _fetch_timetable(session, log) -> list[dict]:
     """The timetable, during discovery. Never fatal: discovery already worked.
 
@@ -1192,6 +1215,9 @@ def chain_downstream(
 
     if getattr(cfg, "adapted_services", False):
         _report_adapted_services(cfg, driver, log)
+
+    if not dry_run:
+        _read_book_pages(cfg, log)
 
     # The buttons, beside the course folders. macOS has had a Sync School.app
     # since the start and Windows had nothing at all, not even a mention.

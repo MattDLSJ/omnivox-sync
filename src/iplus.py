@@ -414,6 +414,17 @@ def main(argv: list[str] | None = None) -> int:
         size = dest.stat().st_size / 1e6
         print(f"{dest}  ({len(images)} pages, {size:.0f} MB)")
 
+        # The PDF is pictures of pages, so nothing downstream can read a word
+        # of it: pdftotext returns zero characters, NotebookLM indexes an
+        # image, and an assistant asked to quiz from the manual correctly
+        # reports that the file has no text. The sidecar is what makes the
+        # chapter usable; the PDF stays untouched for reading and printing.
+        from src.book_text import ensure_text
+
+        made = ensure_text(dest, logger=log)
+        if made:
+            print(f"  Text: {made.name}")
+
         if size > MAX_SOURCE_MB:
             print(f"  Not queued: {size:.0f} MB is over NotebookLM's {MAX_SOURCE_MB:.0f} MB "
                   "source cap. Take a smaller range and it will queue.")

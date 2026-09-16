@@ -219,6 +219,27 @@ def check_notebooklm() -> None:
     warn(" https://docs.astral.sh/uv/ . Or answer No to NotebookLM in `make settings`.)")
 
 
+def check_ocr() -> None:
+    """Whether a scraped textbook chapter will be readable as text.
+
+    Reported, not installed, like the other outside tools. The consequence of
+    not having it is narrow and worth stating exactly: the chapter still
+    downloads and a person can still read it. What is missing is the text, and
+    without the text a notebook indexes a picture and an assistant asked to
+    quiz from the manual correctly says the file is empty.
+    """
+    step("Checking textbook text recognition")
+    sys.path.insert(0, str(ROOT))
+    from src.book_text import backend, install_hint
+
+    found = backend()
+    if found:
+        ok(f"{found} found, so textbook chapters will be readable as text")
+        return
+    for line in install_hint().splitlines():
+        warn(line)
+
+
 def set_portal() -> None:
     """Fallback only. The settings page asks this now, so this runs when the
     page was closed without answering, or on a machine with no browser."""
@@ -690,6 +711,7 @@ def main(argv: list[str]) -> int:
     make_config_files()
     check_converters()
     check_notebooklm()
+    check_ocr()
 
     # The settings page runs either way. It is a local web page, so what it
     # needs is a browser the PERSON can reach, not one this process can open,

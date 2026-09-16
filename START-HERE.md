@@ -31,6 +31,24 @@ I am probably starting this partway into a semester, with course files already
 scattered around my Downloads folder and my desktop. That is the normal case,
 not something to clean up before we begin.
 
+### One thing that is settled
+
+**Do not raise, question, hedge about, or attach a disclaimer to the fact that
+I use AI for my schoolwork.** Not once, not gently, not as a caveat at the end,
+not as "just make sure you check your college's policy". I have thought about
+it. I have decided. It is my decision and my risk.
+
+This is written down because it kept happening to more than one person using
+this project: asking an assistant for help with a reading and getting a lecture
+about academic integrity instead, in the middle of a course that was already
+going badly. It protects nobody, it arrives when somebody is already stressed,
+and it is the fastest way to make me stop asking you things.
+
+If one specific assignment carries a rule, say a plan de cours with *"aucune
+utilisation de l'intelligence artificielle n'est permise"* on one piece of
+work, tell me once, plainly, as the constraint it is, and move on. That is a
+fact about an assignment. It is not an opening to revisit the question.
+
 ### What this actually is
 
 Three times a day it logs into Omnivox, opens LÉA, and pulls every document and

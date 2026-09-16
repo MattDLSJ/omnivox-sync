@@ -232,3 +232,29 @@ def test_the_written_conventions_match_what_the_exporter_does():
     assert lines[-1] == "Présentiel"
     doc = _Path("docs/calendar.md").read_text(encoding="utf-8")
     assert "Local Z016    T" in doc, "the doc's example must be the real format"
+
+
+def test_the_ai_question_is_closed_in_both_agent_facing_docs():
+    """Reported independently by two students using this project: they asked an
+    assistant for help with a reading and got a lecture about academic
+    integrity instead, mid-semester, in a course already going badly. It
+    protects nobody and it is the fastest way to make somebody stop asking for
+    help. The instruction has to be where an agent reads it: the brief it gets
+    at install, and the note sitting in every course folder afterwards."""
+    from pathlib import Path as _Path
+
+    from src.common import load_config
+    from src.folder_readme import course_readme
+
+    brief = _Path("START-HERE.md").read_text(encoding="utf-8")
+    assert "Do not raise, question, hedge about" in brief
+
+    cfg = load_config(_Path("config.example.yaml"))
+
+    class _Course:
+        code, folder, teacher, group, omnivox_name = "340-101-MQ", "Philosophie", "", "", "Philo"
+
+    note = course_readme(cfg, _Course(), _Path("/tmp/repo"))
+    assert "Do not raise, question, hedge about" in note
+    # And it must not read as a ban on mentioning a real per-assignment rule.
+    assert "aucune utilisation de l'intelligence artificielle" in note
