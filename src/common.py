@@ -162,6 +162,9 @@ class Config:
     # Install the scheduled job at the end of setup, so it runs by itself from
     # day one rather than after somebody reads a recommendation and acts on it.
     schedule_auto: bool = True
+    #: Off unless asked for: most students have no accommodation and should
+    #: not be asked to care about one.
+    adapted_services: bool = False
     # Look through Downloads, Desktop and Documents for course files that are
     # already on the machine, and file them. Never deletes.
     organize_scan: bool = True
@@ -401,6 +404,9 @@ def load_config(config_path: Path, *, repo_root: Path | None = None) -> Config:
         schedule_file=str(raw.get("schedule_file", "_schedule.md") or "_schedule.md"),
         mio_full_bodies=bool((raw.get("mio") or {}).get("full_bodies", False)),
         schedule_auto=bool((raw.get("schedule_settings") or raw.get("scheduling") or {}).get("auto", True)),
+        adapted_services=bool(
+            (raw.get("adapted_services") or {}).get("enabled", False)
+        ),
         organize_scan=bool((raw.get("organize") or {}).get("scan", True)),
         microphone=str(raw.get("microphone", "") or ""),
         transcribe=bool(raw.get("transcribe", True)),

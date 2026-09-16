@@ -227,6 +227,20 @@ QUESTIONS = [
         "after": "Run `make install-launchd` again to put the new times into effect. Until you do, the old schedule is still what runs.",
     },
     {
+        "key": "adapted_services.enabled",
+        "tier": "settings",
+        "title": "Services adaptés",
+        "lede": "For students registered with a centre de services adaptés. It reads the accommodations your college holds for you and checks them against your timetable.",
+        "kind": "choice",
+        "default": "false",
+        "options": [
+            ("true", "Yes, I am registered",
+             "Mostly this watches for one thing: extra time is a percentage of the class block and your exam booking starts when the class does, so an extended exam runs past the end of the period into your next class. The booking module does not know your timetable and your timetable does not know about your accommodation, so nobody catches it. On a real schedule it found three."),
+            ("false", "No",
+             "Nothing is read and nothing is asked. This is the right answer for most people."),
+        ],
+    },
+    {
         "key": "update.auto",
         "tier": "settings",
         "title": "Automatic updates",

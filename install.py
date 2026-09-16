@@ -397,6 +397,14 @@ def _visible_window(args: list[str], *, what: str, timeout_s: int = 900) -> int 
     person with no instructions to follow, and both let this process wait and
     then carry on by itself.
     """
+    if os.environ.get("SCHOOL_NO_BROWSER") == "1":
+        # "This environment has no display" has to mean the sign-in too, not
+        # only the settings page. It did not, and the end-to-end installer
+        # test then walked straight past the hand-over into a real sync:
+        # the suite created a browser profile, took the run lock, and left
+        # `make doctor` reporting that another run was in progress.
+        return None
+
     marker = ROOT / "state" / "handover.exit"
     marker.unlink(missing_ok=True)
     marker.parent.mkdir(parents=True, exist_ok=True)

@@ -452,6 +452,49 @@ def folder_name_from(display_name: str) -> str:
     return cleaned
 
 
+def _report_adapted_services(cfg, session, log) -> str:
+    """Read the accommodations and check them against the timetable.
+
+    Never fatal, and silent when the student has no accommodation. The thing
+    it is looking for is the collision nobody else can see: extra time is a
+    percentage of the class block and the exam booking starts when the class
+    starts, so an extended exam runs into the next class. The exam module does
+    not hold the timetable and the timetable does not hold the accommodation.
+    This is the only place both are in the same process.
+    """
+    from src.adapted_services import collisions, parse_accommodations, summary
+    from src.recorder import parse_schedule
+
+    try:
+        page = session.fetch_adapted_services()
+    except Exception as exc:  # noqa: BLE001
+        log.info("Could not read the Services adaptés module (%s).", type(exc).__name__)
+        return ""
+    accommodations = parse_accommodations(page) if page else None
+    if not accommodations:
+        return ""
+
+    try:
+        entries = parse_schedule(cfg.schedule)
+    except Exception:  # noqa: BLE001 - a bad timetable is reported elsewhere
+        entries = []
+    clashes = collisions(entries, accommodations.extra_time_percent)
+    text = summary(accommodations, clashes, labels=cfg.labels())
+    for line in text.splitlines():
+        log.info("%s", line)
+    if clashes:
+        from src.common import notify
+
+        notify(
+            "Exam times to fix",
+            f"{len(clashes)} exam slot(s) run into your next class once your "
+            f"{accommodations.extra_time_percent}% extra time is added.",
+            level="alert",
+            cfg=cfg.notify,
+        )
+    return text
+
+
 def _fetch_timetable(session, log) -> list[dict]:
     """The timetable, during discovery. Never fatal: discovery already worked.
 
@@ -1146,6 +1189,9 @@ def chain_downstream(
         write_readmes(cfg, dry_run=dry_run, logger=log)
     except Exception as exc:  # noqa: BLE001 - a note is never worth a run
         log.warning("Could not write the folder notes: %s", exc)
+
+    if getattr(cfg, "adapted_services", False):
+        _report_adapted_services(cfg, driver, log)
 
     # The buttons, beside the course folders. macOS has had a Sync School.app
     # since the start and Windows had nothing at all, not even a mention.

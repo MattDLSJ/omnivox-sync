@@ -1598,6 +1598,52 @@ class OmnivoxSession:
     #: rather than stored and reused.
     _HORAIRE_LINK = "Horaire de cours"
 
+    #: The Services adaptés tile. Skytech's SRAE module, deployed at colleges
+    #: across Quebec rather than built by one of them, so this navigation is
+    #: not specific to the college this was written against.
+    _ADAPTED_LINK = "Services adaptés"
+
+    def fetch_adapted_services(self) -> str:
+        """The accommodations panel, as HTML. "" when there is no such module.
+
+        Two things make this fiddly and both are worth writing down. The panel
+        is opened by a javascript: link that renders into an IFRAME rather
+        than a real popup, so `page.content()` returns the shell and none of
+        the content; the frames have to be walked. And navigating straight to
+        the URL inside that link logs the session out, so it has to be
+        clicked.
+        """
+        self._home()
+        tile = self.page.locator(f"a:has-text('{self._ADAPTED_LINK}')").first
+        if not tile.count():
+            self.log.info("No Services adaptés module on this portal.")
+            return ""
+        tile.click(timeout=20000)
+        self.page.wait_for_load_state("domcontentloaded", timeout=30000)
+        self.page.wait_for_timeout(2000)
+        try:
+            self.page.get_by_text(
+                "Consulter mes accommodements", exact=False
+            ).first.click(timeout=12000)
+        except Exception:  # noqa: BLE001 - the module exists but not the panel
+            self.log.info("Could not open the accommodations panel.")
+            return ""
+        self.page.wait_for_timeout(4000)
+        # By URL, not by content. The shell page carries the words "Consulter
+        # mes accommodements" on the link that opens the panel, so a content
+        # match happily returns the shell, which parses to nothing and looks
+        # exactly like a student who has no accommodations.
+        for frame in self.page.frames:
+            if frame is self.page.main_frame:
+                continue
+            if "accommodement" in (frame.url or "").lower():
+                try:
+                    return frame.content()
+                except Exception:  # noqa: BLE001
+                    return ""
+        self.log.info("The accommodations panel did not load.")
+        return ""
+
     def fetch_horaire(self, session: str) -> str:
         """The timetable page for one session, as HTML. "" if there is none.
 

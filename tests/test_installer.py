@@ -61,9 +61,14 @@ def test_the_handover_names_what_is_left(installer, capsys):
     assert "choosing your college and signing in" in capsys.readouterr().out
 
 
-def test_running_it_without_a_terminal_stops_before_opening_a_browser():
-    """End to end, the way an agent would run it: it must reach the handover
-    and never launch anything with a window."""
+def test_running_it_without_a_display_stops_instead_of_installing():
+    """End to end, the way CI and this suite run it.
+
+    A driven install opens a real window for the sign-in now, which is right
+    on somebody's desktop and wrong here: without SCHOOL_NO_BROWSER covering
+    the sign-in as well as the settings page, this test walked past the
+    hand-over into an actual sync, created a browser profile, took the run
+    lock and left `make doctor` reporting a run in progress."""
     import os
 
     got = subprocess.run(
@@ -76,7 +81,13 @@ def test_running_it_without_a_terminal_stops_before_opening_a_browser():
         # The settings page legitimately waits a quarter of an hour for
         # somebody to open it. Waiting that long to prove a code path is a
         # test nobody runs.
-        env={**os.environ, "OMNIVOX_SETUP_TIMEOUT": "1"},
+        env={
+            **os.environ,
+            "OMNIVOX_SETUP_TIMEOUT": "1",
+            # "No display here" now covers the sign-in as well as the settings
+            # page. Without it this test performs a real install.
+            "SCHOOL_NO_BROWSER": "1",
+        },
     )
     assert got.returncode == 3, got.stdout[-2000:]
     # Whitespace-insensitive: the phrase is wrapped across a line in the real

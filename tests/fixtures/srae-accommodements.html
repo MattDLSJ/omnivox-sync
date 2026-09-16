@@ -1,0 +1,135 @@
+<!DOCTYPE html><html><head>
+        <title>Accommodements - Omnivox</title>
+        <meta charset="UTF-8">
+
+        
+<link href="/WebApplication/Module.SRAE/css/skytech?v=VqXjzJkM-pO4AX_VVXR8FGAJVzljkM8y54s5O6sBr-k1" rel="stylesheet">
+<link href="/WebApplication/Module.SRAE/Content/Partage/CSS/JQueryUI/bundle?v=OeM9X1UR6ZVRJdb4lKv0uu6ncRA8oqpqfwcPsxdlWhs1" rel="stylesheet">
+		
+		<link href="/WebApplication/Module.SRAE/Content/Site.css" rel="Stylesheet">
+
+<script src="/WebApplication/Module.SRAE/javascript/jquery-latest?v=vblWDlWxI8rfHeOyc5zz1Czynz5aKusE5fCvYU15Jik1"></script>
+
+
+
+    </head>
+    <body class="CssGlobal">
+       
+
+		<div class="Gen_Container_Module_Vide">
+			
+
+
+
+<link href="/WebApplication/Module.SRAE/Views/Accommodements/Accommodements.css" rel="stylesheet" type="text/css">
+
+<div id="divContainerAccommodements" class="contenu" data-base-url="/WebApplication/Module.SRAE/Accommodements/ContenuAccommodementsEtudiant?anSession=ANSESSION">
+	<div style="margin-bottom: 20px;">
+		<h1 class="TitreCssGlobal">
+			Accommodements
+		</h1>
+		<select class="form-select" id="AnSessionAccommodementsEtudiant" tabindex="-1" onchange="ServicesAdaptes.AccommodementsEtudiant.GetListeAccommodements($(this).val())">
+					<option selected="" value="20263">Automne 2026</option>
+					<option value="20253">Automne 2025</option>
+		</select>
+	</div>
+
+	<div class="ajax-target">
+	<div class="listeAccommodements">
+		<ul>
+
+				<li class="accommodement">
+					Autres
+					
+ : *Conseillère: Isabelle Tremblay				</li>
+				<li class="accommodement">
+					Salle d'examen (CSA)
+					
+				</li>
+				<li class="accommodement">
+					Temps supplémentaire lors d'un examen théorique
+					
+ : 33%				</li>
+
+		</ul>
+	</div>
+</div>
+	<div id="divSpinnerPopup" class="preloader hide">
+		<img id="spinnerPopup" src="/images/General/loading-spiral.gif" width="40px" height="40px">
+	</div>
+
+	<div class="row page-ajax-unexpected-error hide">
+		<span class="validation-summary-errors">Une erreur inattendue est survenue. Veuillez réessayer ultérieurement.</span>
+	</div>
+</div>
+
+<div id="Gen_Footer" class="footer Gen_FooterAbsolute" style="top: 138px;">
+	<table border="0" cellpadding="0" cellspacing="0">
+		<tbody><tr>
+			<td class="tdFillEspace">
+				&nbsp;
+			</td>
+
+			<td>
+				<a href="javascript:window.parent.Utils.Popup.FermerPopup();" id="btnAnnuler" class="Gen_Btn Gen_BtnAnnuler" title="Fermer">Fermer</a>
+			</td>
+
+		</tr>
+	</tbody></table>
+</div>
+
+<script type="text/javascript">
+	document.domain = "omnivox.ca";
+</script>
+
+		</div>
+	
+<script src="/WebApplication/Module.SRAE/javascript/jqueryui-latest?v=Lw0L6J2Upsp-bEWpmr7u14gGXjxnjN2fg2gy1g4qfp41"></script>
+<script src="/WebApplication/Module.SRAE/javascript/skytech?v=l4E38iFhQYd4IB5Vgh0zpaDl536gnOKKcqZMl-u-64w1"></script>
+<script src="/WebApplication/Module.SRAE/javascript/validation-latest?v=sFwbVDg9UacaqF5MN__626Uib2IuhGv1yG14KFrbctw1"></script>
+<script src="/WebApplication/Module.SRAE/javascript/skytech/editortemplates?v=PJQF9oXQLjYAIqQ91uSnVk6trSSgK2Vfy0coUm11jhQ1"></script>
+<script type="text/javascript">
+	if (typeof (Skytech) !== 'undefined') {
+		Skytech.Config = {
+			langue: 'FRA'
+			, codeClient: 'EDM'
+			, codeClientParent: 'EDM'
+			, formatNumeroCours: {
+				format: 1
+				, minLength: 6
+				, maxLength: 8
+			}
+			, formatNumeroProgramme: {
+				format: 1
+				, minLength: 5
+				, maxLength: 5
+			}
+		};
+	}
+</script>
+			<script type="text/javascript" src="/WebApplication/Module.SRAE/Content/Partage/JavaScript/JQuery1.9/jquery-template.js"></script>
+
+		
+	<script type="text/javascript" src="/WebApplication/Module.SRAE/Views/Accommodements/AccommodementsEtudiant.js"></script>
+	<script type="text/javascript">
+		var isIE = (function () {
+			var undef, v = 3, div = document.createElement('div');
+
+			while (
+				div.innerHTML = '<!--[if gt IE ' + (++v) + ']><i></i><![endif]-->',
+				div.getElementsByTagName('i')[0]
+			);
+
+			return v > 4 ? v : undef;
+		}());
+
+		if (!isIE) {
+			document.domain = "omnivox.ca";
+		}
+
+		ServicesAdaptes.AccommodementsEtudiant.GetListeAccommodements($('#AnSessionAccommodementsEtudiant :selected').val())
+	</script>
+
+    
+
+</body></html>

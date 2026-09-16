@@ -31,6 +31,18 @@ schedule: []
 scheduling:
   auto: true
 
+# For students registered with a centre de services adaptés (CSA, SAIDE, and
+# the other names colleges give it). Reads the accommodations Omnivox holds
+# for you, then checks them against your timetable.
+#
+# The check is the point. Extra time is a percentage of the class block, and
+# the exam booking starts when the class starts, so an extended exam runs past
+# the end of the period into whatever you have next. Neither system can see
+# it: the booking module does not know your timetable, and your timetable does
+# not know you have an accommodation. Off by default.
+adapted_services:
+  enabled: false
+
 # --------------------------------------------------------------------------
 # Which Omnivox this account is on.
 #

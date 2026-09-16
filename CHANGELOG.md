@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v46 (2026-09-15)
+
+New: if you are registered with a centre de services adaptes, this can now read the accommodations your college holds for you and check them against your timetable. It mainly watches for one thing that is easy to miss and expensive to discover late: extra time is a percentage of the class block and your exam booking starts when the class does, so an exam with extra time runs past the end of the period and into your next class. The exam booking system does not know your timetable and your timetable does not know about your accommodation, so nothing else catches it. Turn it on in make settings; it is off by default.
+
 ## v45 (2026-09-11)
 
 The calendar an AI assistant builds for you now follows a written set of conventions instead of whatever it decides on the day, and they are the same ones the built-in .ics export has always used: the classroom as the event location so it shows in the reminder, the course icon and class number in the title, evaluations coloured grape with their weighting in the title, and one event per meeting rather than a weekly repeat, because a cegep term has day swaps and cancelled days that a repeating event gets silently wrong.
