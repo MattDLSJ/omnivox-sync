@@ -68,6 +68,7 @@ update:
 	  echo "No Python environment here yet. Run this first:"; \
 	  echo "  make venv"; \
 	  exit 1; }
+	@$(PY) scripts/check_history.py || exit 1
 	@git pull --ff-only || { \
 	  echo ""; \
 	  echo "Could not fast-forward. Your copy has commits or edits the"; \

@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v50 (2026-09-16)
+
+If you already had a copy of this before today, your next update will stop with an explanation instead of a confusing git error. The published history was rewritten to remove a file that should never have shipped, so an existing copy no longer shares any commit with the release. Nothing of yours is lost: the update now tells you the one command that moves you across, and spells out that your credentials, your config, your signed-in session and your course folders are not affected, because none of them are stored in git.
+
 ## v49 (2026-09-16)
 
 Fixes reports silently not reaching the maintainer. The relay call sent no User-Agent, so Cloudflare's bot protection refused it with a 403 before the Worker saw it; the tool then fell back to filing the issue locally and still said "Sent." If you have been sending field reports and wondered whether they arrived, this is why some did not. The relay also moved to a new address, which this release points at, and a Wrangler cache file that named a Cloudflare account has been removed from the repository.
