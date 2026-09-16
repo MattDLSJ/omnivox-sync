@@ -36,3 +36,12 @@ logs/*
 
 # a separate project of yours that happens to live in this folder
 horaires-cegep/
+
+# Wrangler local state. It caches which Cloudflare ACCOUNT you last used,
+# by name and id. That reached the public repo at v33 and sat there: it named
+# a client of the author, complete with the e-mail her account is named after,
+# in a student project she has nothing to do with.
+.wrangler/
+
+# Working notes about a client. Never belongs in a repo that gets published.
+relay/DEMENAGEMENT.md

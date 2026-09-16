@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v49 (2026-09-16)
+
+Fixes reports silently not reaching the maintainer. The relay call sent no User-Agent, so Cloudflare's bot protection refused it with a 403 before the Worker saw it; the tool then fell back to filing the issue locally and still said "Sent." If you have been sending field reports and wondered whether they arrived, this is why some did not. The relay also moved to a new address, which this release points at, and a Wrangler cache file that named a Cloudflare account has been removed from the repository.
+
 ## v48 (2026-09-16)
 
 An assistant helping you must now never bring up your use of AI for schoolwork, including the rules on individual assignments. The previous version allowed it to state such a rule once as a factual constraint; that carve-out is gone. Every other constraint on an assignment is still reported normally: word count, written in class, documents permitted, team size.

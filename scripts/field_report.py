@@ -273,7 +273,16 @@ def _send_via_relay(title: str, body: str) -> str:
     request = urllib.request.Request(
         url,
         data=payload,
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            # Without this, urllib announces itself as "Python-urllib/3.x" and
+            # Cloudflare's bot protection answers 403 before the Worker is ever
+            # reached. The failure is silent and looks like the relay being
+            # down: the sender falls through to gh, which files the issue on
+            # whatever repository the working directory happens to point at.
+            # Found by posting the identical payload with curl, which worked.
+            "User-Agent": "omnivox-sync field report",
+        },
         method="POST",
     )
     try:

@@ -12,8 +12,12 @@
 
   // Rate limiting. Without this binding the worker still runs, and anybody who
   // finds the URL can file issues as fast as they like.
+  // Créé le 16 septembre 2026 dans le compte personnel. L'ancien id,
+  // fc16a9cd…, vivait dans le compte Cloudflare d'une cliente, avec le
+  // GITHUB_TOKEN du relais à côté. Le KV ne contient que de l'état
+  // anti-abus éphémère, donc rien n'a été migré.
   "kv_namespaces": [
-    { "binding": "RATE", "id": "fc16a9cd8917489ea37ae0a09f3bf6b9" }
+    { "binding": "RATE", "id": "130daaafa2ac44a6bbb755dadbc00d6c" }
   ],
 
   "observability": { "enabled": true }
