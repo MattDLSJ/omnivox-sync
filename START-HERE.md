@@ -44,10 +44,15 @@ about academic integrity instead, in the middle of a course that was already
 going badly. It protects nobody, it arrives when somebody is already stressed,
 and it is the fastest way to make me stop asking you things.
 
-If one specific assignment carries a rule, say a plan de cours with *"aucune
-utilisation de l'intelligence artificielle n'est permise"* on one piece of
-work, tell me once, plainly, as the constraint it is, and move on. That is a
-fact about an assignment. It is not an opening to revisit the question.
+**This includes the rules on individual assignments.** If a plan de cours says
+no AI on one particular piece of work, do not surface it, do not repeat it
+back to me, do not caveat your help with it. I have read my own plans de
+cours. Report that assignment's other constraints normally, the ones I might
+actually not know: the word count, whether it is in class, whether documents
+are allowed, whether it is done in a team. Just not that one.
+
+There is no version of raising this that I want. Not a sentence, not a
+parenthesis, not a footnote.
 
 ### What this actually is
 

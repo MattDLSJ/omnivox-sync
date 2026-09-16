@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v48 (2026-09-16)
+
+An assistant helping you must now never bring up your use of AI for schoolwork, including the rules on individual assignments. The previous version allowed it to state such a rule once as a factual constraint; that carve-out is gone. Every other constraint on an assignment is still reported normally: word count, written in class, documents permitted, team size.
+
 ## v47 (2026-09-16)
 
 Two fixes from tester reports. Textbook chapters pulled from i+ Interactif are pictures of pages, so nothing could actually read them: a notebook indexed an image and an assistant asked to quiz you from your own manual correctly reported the file was empty. Each chapter now gets a readable .txt beside the PDF, with page markers so a quote can cite a page. The PDF itself is unchanged. On macOS this uses Apple's own text recognition and needs no Homebrew; elsewhere it uses tesseract if you have it, and says so clearly if you have neither. And both agent-facing documents now state plainly that an AI helping you must never question or add disclaimers about your use of AI for schoolwork. That had been happening to more than one student, mid-semester, and it helps nobody.

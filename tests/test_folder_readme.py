@@ -256,5 +256,14 @@ def test_the_ai_question_is_closed_in_both_agent_facing_docs():
 
     note = course_readme(cfg, _Course(), _Path("/tmp/repo"))
     assert "Do not raise, question, hedge about" in note
-    # And it must not read as a ban on mentioning a real per-assignment rule.
-    assert "aucune utilisation de l'intelligence artificielle" in note
+
+    # It covers per-assignment rules too. An earlier version carved those out,
+    # on the reasoning that a plan de cours forbidding AI on one piece of work
+    # is a factual constraint worth stating once. The student asked for that
+    # carve-out to go: he has read his own plans de cours, and "once, plainly"
+    # is still the assistant bringing it up. The other constraints on an
+    # assignment are still expected to be reported.
+    for doc in (note, brief):
+        assert "individual assignments" in doc
+        assert "not a footnote" in doc
+    assert "word count" in note and "in a team" in note
