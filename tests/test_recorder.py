@@ -354,6 +354,29 @@ def _gated(write_config, tmp_repo, mode, **over):
     return load_config(write_config(base), repo_root=tmp_repo)
 
 
+#: A second building about 850 m from CAMPUS. Invented. Never use a reading the
+#: Mac actually took: on 2026-09-17 one was pasted here as "the annex" and it
+#: was where the Mac had been sitting at home, published in v54.
+ANNEX = {"lat": 45.5300, "lon": -73.5000, "radius_m": 200}
+
+
+def test_a_second_campus_building_also_records(write_config, tmp_repo, monkeypatch):
+    """A college is not always one address: a pavilion across the street can be
+    further from the main address than any sensible radius. school_location
+    takes a list, and being inside any circle counts."""
+    cfg = _gated(write_config, tmp_repo, "location", school_location=[CAMPUS, ANNEX])
+    monkeypatch.setattr("src.recorder.current_location", lambda *a, **k: (45.5301, -73.4999))
+    assert at_school(cfg) is True
+    monkeypatch.setattr("src.recorder.current_location", lambda *a, **k: (45.5366, -73.4934))
+    assert at_school(cfg) is True
+
+
+def test_a_list_of_buildings_still_refuses_everywhere_else(write_config, tmp_repo, monkeypatch):
+    cfg = _gated(write_config, tmp_repo, "location", school_location=[CAMPUS, ANNEX])
+    monkeypatch.setattr("src.recorder.current_location", lambda *a, **k: (45.0, -73.0))
+    assert at_school(cfg) is False
+
+
 def test_distance_is_metres():
     from src.recorder import distance_m
 
@@ -379,8 +402,8 @@ def test_at_home_does_not_record(write_config, tmp_repo, monkeypatch):
 
 def test_just_outside_the_radius_does_not_record(write_config, tmp_repo, monkeypatch):
     cfg = _gated(write_config, tmp_repo, "location")
-    monkeypatch.setattr("src.recorder.current_location", lambda *a, **k: (45.5410, -73.4943))
-    assert at_school(cfg) is False
+    monkeypatch.setattr("src.recorder.current_location", lambda *a, **k: (45.5365, -73.4995))
+    assert at_school(cfg) is False  # 405 m west of CAMPUS, radius 400
 
 
 def test_location_unavailable_does_not_record(write_config, tmp_repo, monkeypatch):

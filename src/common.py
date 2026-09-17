@@ -101,6 +101,27 @@ class SchoolLocation:
         return bool(self.lat or self.lon)
 
 
+def _school_locations(value) -> tuple[SchoolLocation, ...]:
+    """`school_location:` as one mapping or a list of them.
+
+    A list because a college is not always one address. On 2026-09-17 classes
+    in pavilion Z read 670 m from the college's own address, so a single point
+    either blocked every class held there or needed a radius wide enough to
+    take in the surrounding streets.
+    """
+    items = value if isinstance(value, list) else [value or {}]
+    places = tuple(
+        SchoolLocation(
+            lat=float(item.get("lat", 0) or 0),
+            lon=float(item.get("lon", 0) or 0),
+            radius_m=float(item.get("radius_m", 400) or 400),
+        )
+        for item in items
+        if isinstance(item, dict)
+    )
+    return places or (SchoolLocation(),)
+
+
 @dataclass(frozen=True)
 class FinderConfig:
     """Cosmetic Finder presentation for course folders."""
@@ -123,6 +144,8 @@ class Config:
     repo_root: Path
     school_ssid: str = ""
     school_location: SchoolLocation = SchoolLocation()
+    #: Every campus point; school_location is the first, kept for older callers.
+    school_locations: tuple[SchoolLocation, ...] = ()
     semester_start: str = ""   # ISO date; recorder is inert outside these bounds
     semester_end: str = ""     # ISO date of the LAST regular class day
     no_class_days: tuple[str, ...] = ()  # ISO dates with no regular classes
@@ -383,11 +406,8 @@ def load_config(config_path: Path, *, repo_root: Path | None = None) -> Config:
         school_ip_prefix=str(raw.get("school_ip_prefix", "") or ""),
         repo_root=repo_root,
         school_ssid=str(raw.get("school_ssid", "") or ""),
-        school_location=SchoolLocation(
-            lat=float((raw.get("school_location") or {}).get("lat", 0) or 0),
-            lon=float((raw.get("school_location") or {}).get("lon", 0) or 0),
-            radius_m=float((raw.get("school_location") or {}).get("radius_m", 400) or 400),
-        ),
+        school_location=_school_locations(raw.get("school_location"))[0],
+        school_locations=_school_locations(raw.get("school_location")),
         semester_start=str(raw.get("semester_start", "") or ""),
         semester_end=str(raw.get("semester_end", "") or ""),
         no_class_days=tuple(str(d) for d in (raw.get("no_class_days") or [])),
