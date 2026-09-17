@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v51 (2026-09-17)
+
+If your copy is from before September 16, updating now explains what happened and gives you the exact commands, instead of failing with a git error that makes your copy look broken. The v50 note was wrong about this: an older copy still shares its first 32 releases with the new history, which is why the old check never triggered. CATCH-UP.md now covers it too. Also fixed: running the tests, which make report and make update both do, could file a real report on GitHub by itself.
+
 ## v50 (2026-09-16)
 
 If you already had a copy of this before today, your next update will stop with an explanation instead of a confusing git error. The published history was rewritten to remove a file that should never have shipped, so an existing copy no longer shares any commit with the release. Nothing of yours is lost: the update now tells you the one command that moves you across, and spells out that your credentials, your config, your signed-in session and your course folders are not affected, because none of them are stored in git.

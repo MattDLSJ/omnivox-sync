@@ -71,11 +71,21 @@ update:
 	@$(PY) scripts/check_history.py || exit 1
 	@git pull --ff-only || { \
 	  echo ""; \
-	  echo "Could not fast-forward. Your copy has commits or edits the"; \
-	  echo "release does not. Put them aside and try again:"; \
-	  echo "  git stash          # then: make update, then: git stash pop"; \
-	  echo "or keep them on a branch:"; \
-	  echo "  git switch -c my-changes && git switch - && make update"; \
+	  echo "Could not fast-forward. Your copy has edits or commits the release"; \
+	  echo "does not, and nothing has been changed. Run these one at a time."; \
+	  echo ""; \
+	  echo "Edits you have not committed: set them aside, update, put them back."; \
+	  echo "  git stash"; \
+	  echo "  make update"; \
+	  echo "  git stash pop"; \
+	  echo ""; \
+	  echo "Commits of your own: keep them on a branch, then move to the release."; \
+	  echo "Stash any edits first, and if the branch name is taken, use another."; \
+	  echo "  git branch my-changes"; \
+	  echo "  git reset --hard origin/main"; \
+	  echo "  make update"; \
+	  echo "The branch keeps your commits. git cherry-pick brings back any you"; \
+	  echo "still need, and if they are fixes, make report sends them upstream."; \
 	  exit 1; }
 	$(PY) -m pip install -q -r requirements.txt
 	@$(PY) -m pytest -m "not live" || \

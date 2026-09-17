@@ -26,6 +26,9 @@ arranged so that it survives, and so that it reaches him.
 So: **do not `git checkout`, do not `git reset --hard`, do not delete and
 re-clone.** If you find yourself about to, stop and tell me instead.
 
+There is exactly one exception, the rewritten history in step 3, and it only
+applies under the conditions written there. Nowhere else.
+
 ### 1. Find out what kind of copy this is
 
     git status
@@ -81,9 +84,78 @@ afterwards, and only do it if I still want to.
 
 ### 3. Update
 
+Look before pulling:
+
+    git fetch origin
+    git status
+
+**If the fetch printed `(forced update)` beside `main`, or `git status` says
+my branch and `origin/main` "have diverged"**, read the next section before
+running anything else. The fetch only says "forced update" the first time, so
+"diverged" on its own is enough to send you there.
+
+Otherwise:
+
     git pull --ff-only
 
 If it refuses, tell me exactly what it said rather than forcing anything.
+
+#### If the history was rewritten
+
+On 2026-09-16 the published history was rewritten to remove a file that should
+never have shipped. v1 to v32 are unchanged. Every release from v33 on was
+rebuilt with the same message and date but a different commit, so a copy that
+had pulled any of them now looks to git as if it has commits of its own, and
+`git pull --ff-only` refuses with "Not possible to fast-forward". Nothing is
+broken.
+
+First confirm that is really what this is. List every commit my copy has that
+the release does not:
+
+    git log --format="%h %ad %s" --date=iso origin/main..HEAD
+
+It is the rewrite only if **every** line's subject starts with a version, like
+`v33:`, and the same subject with the same date appears in:
+
+    git log --format="%h %ad %s" --date=iso origin/main
+
+Check them all, not the first few. Then make sure nothing is uncommitted:
+
+    git status --porcelain --untracked-files=no
+
+**If every line is an old release and that prints nothing**, this is the one
+place where `git reset --hard` is right. Run these one at a time:
+
+    git reset --hard origin/main
+    git fetch --force --tags origin
+
+The second moves my version tags onto the rebuilt releases; a plain fetch
+leaves them pointing at the old commits. It is safe because a reset only
+replaces files git tracks: `.env`, `config.yaml`, `state/` (my signed-in
+browser profile) and my course folders are gitignored or outside the
+repository, and none of them are touched. Every commit it drops is a release
+that exists again, rebuilt, in `origin/main`. Then carry on from
+`git pull --ff-only` above, which will have nothing left to do.
+
+**If any line is not an old release**, that commit is mine, or yours from last
+time, and it exists nowhere else. Tell me about it, then put it on a branch
+before the reset:
+
+    git branch my-changes
+    git reset --hard origin/main
+    git fetch --force --tags origin
+
+If `git branch` says the name exists, choose another and do not reset until a
+branch command has succeeded. The branch keeps those commits exactly as they
+were. In step 5, treat them like the stash: bring back only the ones still
+needed, with `git cherry-pick` and the commit's hash.
+
+**If the status command printed anything**, step 2 did not save everything. Go
+back and do step 2, then return here. Never reset over uncommitted changes.
+
+That is the whole exception: `git reset --hard origin/main`, for this rewrite
+only, once every commit it would drop is an old release or already on a
+branch, and with nothing uncommitted.
 
 Then reinstall the dependencies, which have changed:
 
@@ -102,6 +174,10 @@ version should go, not stay.
 ### 5. Decide, per change, whether to put yours back
 
     git stash pop
+
+If step 3 put commits of mine on a branch, they count as my changes too:
+`git log --oneline origin/main..my-changes` lists them (or whatever name the
+branch got).
 
 For each of my changes, tell me plainly: is this still needed, or has the
 project fixed it since? Drop the ones that are now redundant. Keep the ones

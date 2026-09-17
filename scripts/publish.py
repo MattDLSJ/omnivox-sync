@@ -203,7 +203,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     url = _remote()
-    name, email = snap._identity(REPO_ROOT)
+    # Not `name`: the deletion listing below loops with a variable, and when
+    # it was also called `name` every release that removed a file was
+    # committed with that file's path as its author (v33 and v49).
+    author, email = snap._identity(REPO_ROOT)
     _preflight()
 
     public = _fetch_public(url)
@@ -220,8 +223,8 @@ def main(argv: list[str] | None = None) -> int:
         # A file somebody else added to the public repo disappears here without
         # a word, because the tree is replaced wholesale. Say so out loud.
         print("\nThese files exist in the published repo and will be DELETED:")
-        for name in removed:
-            print(f"    {name}")
+        for path in removed:
+            print(f"    {path}")
         if args.confirm_deletions:
             # Named per invocation, and it prints what it is about to remove
             # first, so "I know" has to be about THESE files rather than a
@@ -253,7 +256,7 @@ def main(argv: list[str] | None = None) -> int:
     version = _next_version(public)
     _write_changelog(public, version, message)
     _run("add", CHANGELOG, cwd=public)
-    _run("config", "user.name", name, cwd=public)
+    _run("config", "user.name", author, cwd=public)
     _run("config", "user.email", email, cwd=public)
     _run("commit", "--quiet", "-m", f"{version}: {message}", cwd=public)
     _run("tag", version, cwd=public)

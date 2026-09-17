@@ -17,6 +17,26 @@ import scripts.field_report as field_report
 check_private = field_report.check_private
 
 
+@pytest.fixture(autouse=True)
+def _the_real_relay_is_never_reached(monkeypatch):
+    """Every test here that calls send(dry_run=False) used to post to the live
+    relay, which files a public issue. It went unnoticed while the relay was
+    answering 403, and the day that was fixed a test run filed one titled
+    after the maintainer's machine, with "It broke." as the body. Worse,
+    `make report` and `make update` both run this suite, so every tester
+    sending a report filed a junk issue first.
+
+    Unreachable rather than stubbed out, so the tests that are about the
+    fallbacks see what they were written for: a relay that does not answer.
+    A test about the relay itself patches urlopen again, which wins.
+    """
+
+    def unreachable(request, timeout=0):
+        raise OSError("tests never reach the real relay")
+
+    monkeypatch.setattr(field_report.urllib.request, "urlopen", unreachable)
+
+
 def _break_gh_only(monkeypatch):
     """Make `gh` missing without also making `git` missing.
 
