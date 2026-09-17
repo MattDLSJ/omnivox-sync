@@ -118,3 +118,25 @@ def test_the_summary_names_both_courses_readably():
                    labels={"340-101-MQ": "Philosophie", "601-102-MQ": "Littérature"})
     assert "Philosophie" in text and "Littérature" in text
     assert "26 min over" in text
+
+
+def test_a_class_split_into_two_blocks_does_not_collide_with_itself():
+    """Recherche qualitative is 13:10 to 17:00 then 17:10 to 18:00 on the same
+    Thursday, two rows in the timetable for one class. The check reported the
+    first block's exam running 50 minutes into "Recherche", which is the same
+    course, the same teacher and the same room: not a class being missed."""
+    entries = [
+        _slot("300-204-EM", "thursday", dtime(13, 10), dtime(17, 0)),
+        _slot("300-204-EM", "thursday", dtime(17, 10), dtime(18, 0)),
+    ]
+    assert collisions(entries, 33) == []
+
+
+def test_a_different_class_after_a_split_one_still_collides():
+    entries = [
+        _slot("A", "thursday", dtime(8, 10), dtime(9, 0)),
+        _slot("A", "thursday", dtime(9, 10), dtime(10, 0)),
+        _slot("B", "thursday", dtime(10, 10), dtime(12, 0)),
+    ]
+    clashes = collisions(entries, 50)
+    assert [c.clashes_with for c in clashes] == ["B"]

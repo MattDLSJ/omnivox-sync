@@ -1764,3 +1764,82 @@ def test_the_recorder_refuses_once_instead_of_failing_every_minute(monkeypatch, 
 
     assert rec.tick(_Cfg()) == "inert"
     assert calls == [], "it must refuse before touching the schedule or launchd"
+
+
+def test_a_capture_that_may_not_be_signalled_yet_is_still_recording(
+    write_config, tmp_repo, sample_config_dict, monkeypatch
+):
+    """For a moment after launchd starts the capture, os.kill(pid, 0) raises
+    PermissionError: the process exists but is not yet signallable by us.
+    Measured 2026-09-17 on a /bin/sh job: PermissionError at launch, fine one
+    second later. is_recording() read that as dead and deleted the pid file,
+    so `make record-now` reported "Could not start recording" over a capture
+    that was running, and every later tick had lost track of it."""
+    from src.recorder import is_recording, pid_file
+
+    cfg = _recorded_cfg(write_config, tmp_repo, sample_config_dict)
+    pid_file(cfg).write_text("4242", encoding="utf-8")
+
+    def not_yet(pid, sig):
+        raise PermissionError(1, "Operation not permitted")
+
+    monkeypatch.setattr("src.recorder.os.kill", not_yet)
+    monkeypatch.setattr("src.micapp.running_pid", lambda *a, **k: 4242)
+    assert is_recording(cfg)
+    assert pid_file(cfg).exists(), "the pid file of a live capture was deleted"
+
+
+def test_a_stale_pid_reused_by_a_system_process_is_not_a_recording(
+    write_config, tmp_repo, sample_config_dict, monkeypatch
+):
+    """The other way to get EPERM: the Mac restarted with a pid file left
+    behind and a root process now holds that number. Believing it would leave
+    the recorder "recording" forever, and no class would ever start."""
+    from src.recorder import is_recording, pid_file
+
+    cfg = _recorded_cfg(write_config, tmp_repo, sample_config_dict)
+    pid_file(cfg).write_text("4242", encoding="utf-8")
+
+    def root_owned(pid, sig):
+        raise PermissionError(1, "Operation not permitted")
+
+    monkeypatch.setattr("src.recorder.os.kill", root_owned)
+    monkeypatch.setattr("src.micapp.running_pid", lambda *a, **k: None)
+    assert not is_recording(cfg)
+    assert not pid_file(cfg).exists()
+
+
+def test_the_sweep_leaves_a_capture_alone_after_its_class_has_ended(
+    write_config, tmp_repo, sample_config_dict, monkeypatch
+):
+    """2026-09-17. The first tick after 12:00 ran the sweep before the step that
+    stops the capture. With the class over, nothing in the schedule pointed at
+    the directory ffmpeg was still writing into, so the sweep filed it as an
+    orphan mid-recording, deleted the directory, and ffmpeg died on its next
+    segment. The minutes before the end of the class were lost."""
+    import logging
+
+    # The real start_capture, because the bug lives in what it leaves behind.
+    # Lifting the autouse guard is safe only because everything that could
+    # launch or record is replaced on the next lines, before it is called.
+    monkeypatch.undo()
+    from src import micapp
+    from src.recorder import session_dir, start_capture, sweep_orphans
+
+    cfg = _recorded_cfg(write_config, tmp_repo, sample_config_dict)
+    monkeypatch.setattr("src.recorder.find_ffmpeg", lambda: "/bin/echo")
+    monkeypatch.setattr("src.recorder.resolve_microphone", lambda *a, **k: ":0")
+    monkeypatch.setattr(micapp, "capture_binary", lambda root, fallback: fallback)
+    monkeypatch.setattr(micapp, "start_capture_job", lambda *a, **k: os.getpid())
+    monkeypatch.setattr("src.recorder.subprocess.Popen", lambda *a, **k: None)
+
+    started = datetime(2026, 8, 27, 8, 15)
+    start_capture(cfg, ENTRY, started, logging.getLogger("test"))
+    live = session_dir(cfg, ENTRY, started)
+    for i in range(3):
+        (live / f"chunk_081500_{i:03d}.m4a").write_bytes(b"x" * 5000)
+
+    filed = []
+    monkeypatch.setattr("src.recorder.finalize", lambda c, e, w, l: filed.append(e) or None)
+    sweep_orphans(cfg, datetime(2026, 8, 27, 10, 2), logging.getLogger("test"))
+    assert filed == [], "the sweep filed a capture that was still running"

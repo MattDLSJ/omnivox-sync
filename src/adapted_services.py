@@ -174,6 +174,10 @@ def collisions(entries, percent: int, *, course: str | None = None) -> list[Coll
             for later in slots[i + 1:]:
                 if later.start >= finishes:
                     break
+                if later.course == slot.course:
+                    # One class the timetable splits into two rows. Running on
+                    # into its own second block is not missing a class.
+                    continue
                 overlap = round(
                     (
                         datetime.combine(date(2000, 1, 1), min(finishes, later.end))

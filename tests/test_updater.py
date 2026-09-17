@@ -361,3 +361,40 @@ def test_an_upstream_without_main_does_not_strand_the_copy(tmp_path):
     result = repair_checkout(tmp_path, runner=git)
     assert not result.changed
     assert not (tmp_path / ".git").exists()
+
+
+def _log_line(short, subject, authored="1757000000", committed="1757000100"):
+    return "\x1f".join([short, subject, authored, committed])
+
+
+def test_a_rewritten_release_history_is_named_instead_of_a_git_error(repo):
+    """On 2026-09-16 the published history was rewritten, and every older copy
+    kept its own copies of the rebuilt releases. The fast-forward then fails
+    three times a day with "Not possible to fast-forward", which reads like a
+    broken install. The rebuilt releases keep their subjects and dates, so the
+    copy can tell it holds nothing but old releases and say what to run."""
+    old = _log_line("a924eae", "v41: an old release")
+    git = FakeGit(**{
+        "rev-list": (0, "18"),
+        "merge": (1, "fatal: Not possible to fast-forward, aborting."),
+        "origin/main..HEAD": (0, old),
+        "log": (0, _log_line("c2debf2", "v41: an old release") + "\n" + _log_line("3fa65ff", "v32: shared")),
+    })
+    result = check_and_apply(repo, runner=git)
+    assert result.blocked and not result.changed
+    assert "rewritten" in result.message
+    assert "check_history" in result.message
+    assert not git.ran("reset")
+
+
+def test_commits_of_your_own_are_not_mistaken_for_a_rewrite(repo):
+    git = FakeGit(**{
+        "rev-list": (0, "2"),
+        "merge": (1, "fatal: Not possible to fast-forward, aborting."),
+        "origin/main..HEAD": (0, _log_line("bfcc9af", "Fix the portal hostname for my college")),
+        "log": (0, _log_line("c2debf2", "v41: an old release")),
+    })
+    result = check_and_apply(repo, runner=git)
+    assert result.blocked
+    assert "rewritten" not in result.message
+    assert "Not possible to fast-forward" in result.message

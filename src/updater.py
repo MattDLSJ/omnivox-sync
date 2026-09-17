@@ -116,11 +116,15 @@ def check_and_apply(repo_root: Path, *, runner=_run) -> UpdateResult:
         before = _requirements_hash(repo_root)
         merged = runner(["git", "merge", "--ff-only", "origin/main"], repo_root, 60)
         if merged.returncode != 0:
+            rewritten = _rewritten_history_note(repo_root, runner)
+            if rewritten:
+                return UpdateResult(blocked=True, message=rewritten)
+            reason = (merged.stderr.strip().splitlines() or ["unknown reason"])[0]
             return UpdateResult(
                 blocked=True,
                 message=(
                     "An update is available but could not be applied: "
-                    + (merged.stderr.strip().splitlines() or ["unknown reason"])[0]
+                    + reason.rstrip(".")
                     + ". Nothing has been touched."
                 ),
             )
@@ -142,6 +146,43 @@ def check_and_apply(repo_root: Path, *, runner=_run) -> UpdateResult:
 
     except (subprocess.TimeoutExpired, OSError) as exc:
         return UpdateResult(message=f"update check skipped ({type(exc).__name__})")
+
+
+def _rewritten_history_note(repo_root: Path, runner) -> str:
+    """The message for a copy left behind by a rewritten release history, or "".
+
+    On 2026-09-16 the published history was rewritten and every release from
+    v33 on was rebuilt as a different commit with the same subject and dates.
+    An older copy still holds its own copies of those, so the fast-forward
+    fails with git's "Not possible to fast-forward", three times a day, in words
+    that read like a broken install. A local-only commit with a twin in the
+    release (subject, author date, committer date) is an old release, and
+    scripts/check_history.py prints the exact safe route, so point there.
+    """
+    fmt = "--format=%h%x1f%s%x1f%at%x1f%ct"
+
+    def keys(out: str) -> list[tuple[str, ...]]:
+        return [
+            tuple(line.split("\x1f")[1:])
+            for line in out.splitlines()
+            if line.count("\x1f") == 3
+        ]
+
+    local = runner(["git", "log", fmt, "origin/main..HEAD"], repo_root)
+    release = runner(["git", "log", fmt, "origin/main"], repo_root, 60)
+    if local.returncode != 0 or release.returncode != 0:
+        return ""
+    released = set(keys(release.stdout))
+    mine = keys(local.stdout)
+    if not any(key in released for key in mine):
+        return ""
+    return (
+        "An update is available, but the published history was rewritten, so "
+        "this copy cannot fast-forward to it. It is not damaged. In the project "
+        "folder, run `make update`, or on Windows "
+        "`.venv\\Scripts\\python scripts\\check_history.py`: it says exactly "
+        "what to run and keeps any commits of your own. Nothing has been touched."
+    )
 
 
 def _remote_branch(repo_root: Path, runner) -> str:

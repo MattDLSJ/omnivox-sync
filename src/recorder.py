@@ -579,6 +579,17 @@ def pid_file(cfg: Config) -> Path:
     return cfg.repo_root / "state" / "recorder.pid"
 
 
+def live_dir_file(cfg: Config) -> Path:
+    """Where the running capture is writing, recorded when it starts.
+
+    The sweep used to work this out from the timetable, which only knows while
+    the class is on. The first tick after the end of a class runs the sweep
+    before it stops the capture, and by then no class pointed at the directory
+    ffmpeg was still writing into.
+    """
+    return cfg.repo_root / "state" / "recorder.dir"
+
+
 def _ffmpeg_reason(err_path: Path, limit: int = 200) -> str:
     """The last meaningful line of an ffmpeg stderr log, for a notification.
 
@@ -605,7 +616,26 @@ def is_recording(cfg: Config) -> bool:
         pid = int(path.read_text(encoding="utf-8").strip())
         os.kill(pid, 0)
         return True
-    except (ValueError, ProcessLookupError, PermissionError):
+    except PermissionError:
+        # EPERM means the process EXISTS and we may not signal it. It is what
+        # os.kill answers for a moment after launchd starts the capture, before
+        # the child is ours to signal. Counting it as dead deleted the pid file
+        # of a running capture, so `make record-now` reported a failure over a
+        # recording that was working and every later tick had lost track of it.
+        # EPERM is also what a stale pid reused by a system process answers, so
+        # ask launchd whether that pid really is the capture; otherwise a restart
+        # could leave a class "recording" forever and nothing would ever start.
+        from src import micapp
+
+        try:
+            if micapp.running_pid() == pid:
+                return True
+        except Exception:  # noqa: BLE001 - launchctl unreadable: trust the kernel
+            return True
+        path.unlink(missing_ok=True)
+        live_dir_file(cfg).unlink(missing_ok=True)
+        return False
+    except (ValueError, ProcessLookupError):
         path.unlink(missing_ok=True)
         return False
 
@@ -693,6 +723,7 @@ def start_capture(cfg: Config, entry: ScheduleEntry, now: datetime, log: logging
         return
 
     pid_file(cfg).write_text(str(pid), encoding="utf-8")
+    live_dir_file(cfg).write_text(str(target), encoding="utf-8")
 
     # Hold the machine awake while the lid is open (spec section 10).
     subprocess.Popen(
@@ -715,6 +746,7 @@ def stop_capture(cfg: Config, log: logging.Logger) -> None:
         log.info("No live capture to stop (%s)", exc)
     finally:
         path.unlink(missing_ok=True)
+        live_dir_file(cfg).unlink(missing_ok=True)
         # The job is registered with launchd, not just running. Leaving the
         # registration behind makes the next bootstrap fail with "service
         # already loaded", which would cost tomorrow's first class.
@@ -1168,9 +1200,15 @@ def sweep_orphans(cfg: Config, now: datetime, log: logging.Logger) -> list[Path]
 
     live = None
     if is_recording(cfg):
-        active = active_entry(recordable(cfg, parse_schedule(cfg.schedule)), now)
-        if active is not None:
-            live = session_dir(cfg, active, now)
+        marker = live_dir_file(cfg)
+        if marker.is_file():
+            live = Path(marker.read_text(encoding="utf-8").strip())
+        else:
+            # A capture started before the marker existed. The timetable is
+            # the best remaining guess, and it is only right during the class.
+            active = active_entry(recordable(cfg, parse_schedule(cfg.schedule)), now)
+            if active is not None:
+                live = session_dir(cfg, active, now)
 
     by_code = {e.course: e for e in parse_schedule(cfg.schedule)}
     filed: list[Path] = []

@@ -507,15 +507,22 @@ find again:
 
     make update
 
-On Windows, or anywhere without `make`, that is three commands:
+On Windows, or anywhere without `make`, that is four commands:
 
+    .venv\Scripts\python scripts\check_history.py
     git pull --ff-only
     .venv\Scripts\python -m pip install -r requirements.txt
     .venv\Scripts\python scripts\whats_new.py
 
-The second matters. Dependencies change between releases, and pulling alone
+The first says nothing unless the published history was rewritten since my
+copy was made, which happened once, on 2026-09-16. If it prints an explanation,
+stop there and follow it: it lists the exact commands, one per line, and keeps
+any commits of mine on a branch first. `git pull` on its own would only say
+"Not possible to fast-forward", which looks like damage and is not.
+
+The third matters. Dependencies change between releases, and pulling alone
 leaves me with new code and old packages, which fails in a way that looks like
-a bug in the project. The third prints what actually changed in the releases I
+a bug in the project. The fourth prints what actually changed in the releases I
 just pulled, which is the only way to notice that a fix I patched around by
 hand last week is now in the project properly.
 

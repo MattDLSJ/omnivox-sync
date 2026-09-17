@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v53 (2026-09-17)
+
+Recording: the end of each class could be cut off, because the recording was filed while it was still going. Fixed, along with a false 'Could not start recording' from make record-now when it had in fact started. Also: the exam check no longer warns about a long class running into its own second half, and automatic updates now explain a rewritten history in plain words. Correction to v52: the accommodations crash it fixed dates back to at least v46, not v49.
+
 ## v52 (2026-09-17)
 
 If you turned on the exam accommodations check in setup, every sync was stopping partway since v49: your documents downloaded, but nothing after that ran, so no NotebookLM upload, no calendar update and no daily summary. Fixed. The next sync catches up on its own.
