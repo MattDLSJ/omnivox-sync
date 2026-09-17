@@ -403,3 +403,20 @@ def test_dry_run_does_not_decorate(
     )
     sync(cfg, driver, dry_run=True)
     assert not cfg.base_path.exists()
+
+
+def test_the_accommodations_are_read_while_the_session_is_still_open(
+    loaded_config, fake_driver, course_factory
+):
+    import dataclasses
+
+    calls = []
+    driver = fake_driver(courses=[course_factory()])
+    driver.fetch_adapted_services = lambda: calls.append("read") or ""
+
+    sync(dataclasses.replace(loaded_config, adapted_services=True), driver)
+    assert calls == ["read"]
+
+    calls.clear()
+    sync(loaded_config, driver)
+    assert calls == []  # off by default: most students have no such file

@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v52 (2026-09-17)
+
+If you turned on the exam accommodations check in setup, every sync was stopping partway since v49: your documents downloaded, but nothing after that ran, so no NotebookLM upload, no calendar update and no daily summary. Fixed. The next sync catches up on its own.
+
 ## v51 (2026-09-17)
 
 If your copy is from before September 16, updating now explains what happened and gives you the exact commands, instead of failing with a git error that makes your copy look broken. The v50 note was wrong about this: an older copy still shares its first 32 releases with the new history, which is why the old check never triggered. CATCH-UP.md now covers it too. Also fixed: running the tests, which make report and make update both do, could file a real report on GitHub by itself.

@@ -1139,6 +1139,18 @@ def sync(
             log.warning("Communiqué step failed: %s", exc)
             result.errors.append({"scope": "communiques", "error": str(exc)})
 
+    # The accommodations, checked against the timetable. Here for the same
+    # reason as the MIO: it reads Omnivox, and by chain_downstream the session
+    # is closed. It sat there for two days as `_report_adapted_services(cfg,
+    # driver, log)` with no driver in scope, and every sync with this turned on
+    # died on that line after the documents, taking the upload, the calendar
+    # and the digest with it.
+    if getattr(cfg, "adapted_services", False) and hasattr(driver, "fetch_adapted_services"):
+        try:
+            _report_adapted_services(cfg, driver, log)
+        except Exception as exc:  # noqa: BLE001 - never at the cost of documents
+            log.warning("Accommodations step failed: %s", exc)
+
     for course in courses:
         try:
             _sync_course(
@@ -1212,9 +1224,6 @@ def chain_downstream(
         write_readmes(cfg, dry_run=dry_run, logger=log)
     except Exception as exc:  # noqa: BLE001 - a note is never worth a run
         log.warning("Could not write the folder notes: %s", exc)
-
-    if getattr(cfg, "adapted_services", False):
-        _report_adapted_services(cfg, driver, log)
 
     if not dry_run:
         _read_book_pages(cfg, log)

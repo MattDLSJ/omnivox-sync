@@ -98,3 +98,16 @@ def test_m2_failure_does_not_break_the_sync(loaded_config, monkeypatch):
     chain_downstream(loaded_config, result)  # must not raise
     assert any(e["scope"] == "notebooklm" for e in result.errors)
     assert (loaded_config.base_path / "_digest.md").exists(), "digest still written"
+
+
+def test_the_accommodations_check_does_not_stop_everything_after_it(loaded_config):
+    """It used to be called from here as `_report_adapted_services(cfg, driver,
+    log)`, where no Omnivox session exists and `driver` was never defined. Every
+    sync with the check turned on raised NameError on that line and never
+    reached the upload, the calendar or the digest. Only launchd's error log
+    showed it, because the documents had already downloaded by then."""
+    import dataclasses
+
+    cfg = dataclasses.replace(loaded_config, adapted_services=True)
+    chain_downstream(cfg, _result())
+    assert (cfg.base_path / "_digest.md").exists()
