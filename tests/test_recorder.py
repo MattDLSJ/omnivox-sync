@@ -354,6 +354,28 @@ def _gated(write_config, tmp_repo, mode, **over):
     return load_config(write_config(base), repo_root=tmp_repo)
 
 
+#: A second building a few hundred metres from the main campus. Invented, like
+#: CAMPUS: the point is the shape, not anyone's real reading.
+ANNEX = {"lat": 45.5410, "lon": -73.4880, "radius_m": 200}
+
+
+def test_a_second_campus_building_also_records(write_config, tmp_repo, monkeypatch):
+    """2026-09-17. Classes in pavilion Z read 670 m from the college's address,
+    so a gate built on that one point blocked every class held there: three of
+    his six courses. school_location takes a list for that."""
+    cfg = _gated(write_config, tmp_repo, "location", school_location=[CAMPUS, ANNEX])
+    monkeypatch.setattr("src.recorder.current_location", lambda *a, **k: (45.5411, -73.4879))
+    assert at_school(cfg) is True
+    monkeypatch.setattr("src.recorder.current_location", lambda *a, **k: (45.5366, -73.4934))
+    assert at_school(cfg) is True
+
+
+def test_a_list_of_buildings_still_refuses_everywhere_else(write_config, tmp_repo, monkeypatch):
+    cfg = _gated(write_config, tmp_repo, "location", school_location=[CAMPUS, ANNEX])
+    monkeypatch.setattr("src.recorder.current_location", lambda *a, **k: (45.0, -73.0))
+    assert at_school(cfg) is False
+
+
 def test_distance_is_metres():
     from src.recorder import distance_m
 

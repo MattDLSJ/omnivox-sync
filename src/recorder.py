@@ -390,15 +390,17 @@ def distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 def _by_location(cfg: Config, log) -> bool | None:
     """True/False if location could be determined, None if unavailable."""
-    if not cfg.school_location.configured():
+    places = [p for p in (cfg.school_locations or (cfg.school_location,)) if p.configured()]
+    if not places:
         return None
     here = current_location()
     if here is None:
         log.info("Location unavailable (CoreLocationCLI missing or permission denied)")
         return None
-    metres = distance_m(here[0], here[1], cfg.school_location.lat, cfg.school_location.lon)
-    log.info("Location: %.0f m from campus (radius %.0f m)", metres, cfg.school_location.radius_m)
-    return metres <= cfg.school_location.radius_m
+    measured = [(distance_m(here[0], here[1], p.lat, p.lon), p) for p in places]
+    metres, nearest = min(measured, key=lambda m: m[0] - m[1].radius_m)
+    log.info("Location: %.0f m from the nearest campus point (radius %.0f m)", metres, nearest.radius_m)
+    return any(m <= p.radius_m for m, p in measured)
 
 
 def _by_ssid(cfg: Config, log) -> bool | None:
@@ -1511,6 +1513,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Current position: {here[0]:.6f}, {here[1]:.6f}")
         print("Paste into config.yaml:")
         print(f"  school_location:\n    lat: {here[0]:.6f}\n    lon: {here[1]:.6f}\n    radius_m: 400")
+        print("Already have one and this is another building? Make school_location a")
+        print("list and add this as a second entry, with a smaller radius_m, like 200.")
         return 0
 
     if args.capture_ip:
