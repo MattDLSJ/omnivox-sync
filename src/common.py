@@ -104,10 +104,11 @@ class SchoolLocation:
 def _school_locations(value) -> tuple[SchoolLocation, ...]:
     """`school_location:` as one mapping or a list of them.
 
-    A list because a college is not always one address. On 2026-09-17 classes
-    in pavilion Z read 670 m from the college's own address, so a single point
-    either blocked every class held there or needed a radius wide enough to
-    take in the surrounding streets.
+    A list because a college is not always one address: a pavilion across the
+    street can sit further from the main address than any radius that stops
+    short of the surrounding homes. Each point must come from a reading taken
+    in that building. On 2026-09-17 one was taken from wherever the Mac was,
+    which was home, and the recorder then recorded at home.
     """
     items = value if isinstance(value, list) else [value or {}]
     places = tuple(

@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v55 (2026-09-18)
+
+Replaced the example coordinates in config.example.yaml and the tests with invented ones, and the example now says to take each building's reading inside that building. No change to how anything works.
+
 ## v54 (2026-09-17)
 
 If your classes are in more than one building, the at-school check for recording can now hold one location per building. Before this, a class in a building a few hundred metres from the main address was never recorded.

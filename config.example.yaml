@@ -118,12 +118,13 @@ school_ssid: ""         # Wi-Fi name that means "on campus"; used when at_school
 # Leave lat/lon at 0 to disable it and record wherever you are.
 # Classes in more than one building? Make it a list, one circle per building,
 # and it records inside any of them. Run `make capture-location` in each one.
+# Take each reading with the Mac physically in that building, never from home.
 #   school_location:
-#     - lat: 45.5366
-#       lon: -73.4933
+#     - lat: 0.0        # main building
+#       lon: 0.0
 #       radius_m: 400
-#     - lat: 45.5412
-#       lon: -73.4877
+#     - lat: 0.0        # second building
+#       lon: 0.0
 #       radius_m: 200
 school_location:
   lat: 0.0
