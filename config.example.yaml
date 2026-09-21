@@ -168,6 +168,22 @@ schedule_file: "_schedule.md"
 # file says which one it is.
 mio:
   full_bodies: false
+  # Every new MIO gets its own notification, whoever sent it: the sender and
+  # the subject. Nothing is opened for that, so it stays unread in Omnivox for
+  # you to read yourself. false turns these off.
+  notify: true
+  # What the sync may open to read in full. "never" (default), "teachers"
+  # (the same as full_bodies: true), or "all". Opened messages are read by
+  # fixed rules on your computer, no AI, and one from school staff that carries
+  # a deadline, an evaluation, a change to a class, or is a real message to you
+  # alone, rings as important with the sentence that says so.
+  # The price: whatever is opened shows as READ in Omnivox from then on.
+  open: "never"
+  # Your teachers and the college's services (CSA, API, CAF, registrariat...)
+  # already count as staff. Add anyone else whose messages matter, e.g. your
+  # counsellor at the CSA:
+  #   staff: ["Firstname Lastname"]
+  staff: []
 
 # Substring of the input device name, as shown in System Settings > Sound.
 # Empty = the system default input.

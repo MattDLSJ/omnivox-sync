@@ -547,11 +547,14 @@ people as the way to opt out.
 **Lecture recording.** macOS only, needs a 1.5 GB speech model, and stays
 completely inert until a class timetable is in `config.yaml`. Off unless I ask.
 
-**Notifications.** Desktop ones are macOS only. For my phone instead, tell me
-about `NTFY_TOPIC` in `.env`: I pick a random string nobody would guess, put
-it there, and subscribe to the same name in the ntfy app. An ntfy topic has no
-password, so anyone who knows the name can read my notifications and send me
-fake ones, which is why it lives in `.env` and never in `config.yaml`.
+**Notifications.** On the desktop, Mac or Windows, they work from the start.
+For my phone as well, run `make setup-phone` (on Windows,
+`.venv\Scripts\python scripts\setup_phone.py`): it picks a random topic
+name, saves it in `.env`, tells me what to type in the ntfy app, and sends a
+test. An ntfy topic has no password, so anyone who knows the name can read my
+notifications and send me fake ones, which is why it lives in `.env` and never
+in `config.yaml`. Every new MIO rings too; `mio:` in `config.yaml` says which
+ones the sync may open and read, and it opens none unless I ask.
 
 ### Send back whatever you had to fix
 

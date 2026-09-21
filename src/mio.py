@@ -27,9 +27,14 @@ import re
 import unicodedata
 from pathlib import Path
 
-from src.common import StateStore
+from dataclasses import dataclass
+
+from src.common import StateStore, notify
 
 STATE_FILE = "mio.json"
+#: Every message already announced, so each one rings exactly once. Separate
+#: from STATE_FILE, which only ever held the teacher messages that were filed.
+SEEN_FILE = "mio_seen.json"
 
 #: A French letter almost always opens with one of these, and the subject sits
 #: in front of it with no punctuation between, because the list cell glues the
@@ -95,13 +100,20 @@ def parse_detail(text: str) -> dict:
     saved: it is the reader's own name, in every single file.
     """
     lines = [l.rstrip() for l in (text or "").splitlines()]
-    out = {"sender": "", "date": "", "subject": "", "body": ""}
+    out = {"sender": "", "date": "", "subject": "", "body": "", "direct": False}
     index = 0
     while index < len(lines):
         label = lines[index].strip().lower().rstrip(":")
         value = lines[index + 1].strip() if index + 1 < len(lines) else ""
         if label == "de" and value:
             out["sender"] = value
+            index += 2
+            continue
+        # "À (masqués)" is a message to a group whose names are hidden; a bare
+        # "À" is followed by the recipients, which for a message to you alone is
+        # just you. Kept as a yes/no, never as the name.
+        if label in ("à", "a") and value:
+            out["direct"] = True
             index += 2
             continue
         if label == "date" and value:
@@ -197,15 +209,161 @@ def render(sender: str, subject: str, date: str, body: str, course_code: str,
     return "\n".join(head).strip() + "\n"
 
 
+# ------------------------------------------------------------ importance
+#
+# Fixed rules, no model: asked for that way, and it keeps every message on the
+# Mac. Matched on the accent-folded text so "échéance" and "echeance", or a
+# teacher's missing accents, count the same.
+
+_CHANGE = re.compile(
+    r"\b(annul\w*|report\w*|deplac\w*|changement\w*|modifi\w*|remplac\w*"
+    r"|pas de cours|en ligne|a distance|nouveau local|conge)\b"
+)
+_EVALUATION = re.compile(
+    r"\b(examens?|mini-tests?|tests?|quiz|evaluations?|remises?|remettre|ponder\w*"
+    # What may be brought in is always about an evaluation: "documents
+    # autorisés pour jeudi" came the day before a 15 % one.
+    r"|autorise\w*|documents? permis)\b"
+    r"|\b\d{1,3} ?%"
+)
+_DEADLINE = re.compile(
+    r"\b(\d{1,2}(er)? (janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre"
+    r"|octobre|novembre|decembre)|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche"
+    r"|demain|aujourd'hui|ce soir|cette semaine|semaine prochaine|prochain cours"
+    r"|date limite|echeance|au plus tard|avant le|d'ici)\b"
+)
+#: A deadline stated as one is enough on its own; "jeudi" alone is not.
+_HARD_DEADLINE = re.compile(r"\b(date limite|echeance|au plus tard|derniere journee)\b")
+# Not "rappel": half the college's mass mail opens with it, including "the help
+# desk is open today", and it rang as loudly as a moved exam.
+_ACTION = re.compile(
+    r"\b(obligatoire|important|urgent|n'oubli\w*|vous devez|tu dois"
+    r"|a completer|a faire|a lire|apporte\w*|prepare\w*|inscri\w*|confirme\w*)\b"
+)
+#: College services whose messages are about you: the CSA, the API, the CAF,
+#: the registrar, financial aid. Matched on the sender, never on the body.
+_STAFF = re.compile(
+    r"\b(csa|services? adaptes?|api|caf|registrariat|aide financiere|cheminement"
+    r"|aide pedagogique|conseill\w*|cegep)\b"
+)
+#: Below this, a message written to you by name is a "merci" or an "ok".
+_PERSONAL_WORDS = 25
+
+
+@dataclass(frozen=True)
+class Importance:
+    important: bool
+    reasons: tuple[str, ...]
+    #: The sentence that made it important, or the opening one when nothing did.
+    excerpt: str
+
+
+def _plain(text: str) -> str:
+    return _fold(text).replace("’", "'")
+
+
+def is_staff(sender: str, cfg) -> bool:
+    """Your teachers, the college's services, and anyone listed in `mio: staff:`."""
+    if match_course(sender or "", cfg.courses) is not None:
+        return True
+    folded = _plain(sender)
+    if _STAFF.search(folded):
+        return True
+    return any(_plain(name) in folded for name in getattr(cfg, "mio_staff", ()) if name)
+
+
+def _sentences(text: str) -> list[str]:
+    parts = re.split(r"(?<=[.!?])\s+|\n+", text or "")
+    return [p.strip() for p in parts if len(p.strip()) > 3]
+
+
+def assess(subject: str, body: str, *, staff: bool, direct: bool) -> Importance:
+    """Is this worth interrupting you for, why, and which sentence says so.
+
+    Only staff can be important: a classmate's "c'est obligatoire!" about a
+    party is not. From staff, any change to a class or any evaluation counts; a
+    reminder counts when it carries a date; and a real message written to you
+    alone counts on its own, because that is how a decision on your file
+    arrives.
+    """
+    text = f"{subject}. {body}" if subject else body
+    folded = _plain(text)
+    change = bool(_CHANGE.search(folded))
+    evaluation = bool(_EVALUATION.search(folded))
+    deadline = bool(_DEADLINE.search(folded))
+    hard_deadline = bool(_HARD_DEADLINE.search(folded))
+    action = bool(_ACTION.search(folded))
+    personal = direct and len((body or "").split()) >= _PERSONAL_WORDS
+
+    reasons = []
+    if change:
+        reasons.append("changement")
+    if evaluation:
+        reasons.append("évaluation")
+    if deadline:
+        reasons.append("échéance")
+    if action:
+        reasons.append("à faire")
+    if personal:
+        reasons.append("t'est adressé")
+    important = staff and (
+        change or evaluation or hard_deadline or (action and deadline) or personal
+    )
+
+    excerpt = ""
+    for rule in (_CHANGE, _EVALUATION, _DEADLINE, _ACTION):
+        excerpt = next((s for s in _sentences(body) if rule.search(_plain(s))), "")
+        if excerpt:
+            break
+    if not excerpt:
+        opening = [s for s in _sentences(body) if not _plain(s).startswith(("bonjour", "bonsoir", "salut"))]
+        excerpt = opening[0] if opening else ""
+    if len(excerpt) > 180:
+        excerpt = excerpt[:177].rstrip() + "..."
+    return Importance(important, tuple(reasons) if important else (), excerpt)
+
+
+def _announce(cfg, sender: str, subject: str, body: str, *, staff: bool,
+              direct: bool, log) -> None:
+    verdict = assess(subject, body, staff=staff, direct=direct)
+    title = f"MIO · {clean_sender(sender) or 'nouveau message'}"[:100]
+    lines = [subject or "(sans objet)"]
+    if verdict.important:
+        lines.append(f"⚠ {', '.join(verdict.reasons)} : {verdict.excerpt}".strip(" :"))
+    elif verdict.excerpt and verdict.excerpt != subject:
+        lines.append(verdict.excerpt)
+    notify(
+        title, "\n".join(lines)[:400],
+        level="alert" if verdict.important else "normal",
+        cfg=getattr(cfg, "notify", None),
+    )
+    log.info("MIO announced: %s%s", title, " (important)" if verdict.important else "")
+
+
 def sync_mio(cfg, driver, *, dry_run: bool = False, logger=None) -> list[dict]:
-    """Save new teacher MIO into course folders. Returns upload queue entries."""
+    """Announce new MIO, and save teacher MIO into course folders.
+
+    Returns upload queue entries for the saved ones.
+    """
     log = logger or logging.getLogger("school.mio")
     store = StateStore(cfg.repo_root / "state" / STATE_FILE)
     known = {r.get("key") for r in store.read()}
     queued: list[dict] = []
     fresh: list[dict] = []
 
-    full = bool(getattr(cfg, "mio_full_bodies", False))
+    mode = getattr(cfg, "mio_open", "never")
+    if mode == "never" and getattr(cfg, "mio_full_bodies", False):
+        mode = "teachers"  # the older switch, still honoured
+    announce = bool(getattr(cfg, "mio_notify", True))
+
+    seen_store = StateStore(cfg.repo_root / "state" / SEEN_FILE)
+    # The first run has no memory of what was already there. Announcing all of
+    # it would ring once per message of the semester, so it announces only what
+    # is still unread, and remembers the rest as seen.
+    first_run = not seen_store.path.exists()
+    seen = {r.get("key") for r in seen_store.read()}
+    newly_seen: list[dict] = []
+
     try:
         messages = driver.list_mio()
     except Exception as exc:  # noqa: BLE001
@@ -213,22 +371,23 @@ def sync_mio(cfg, driver, *, dry_run: bool = False, logger=None) -> list[dict]:
         return []
 
     for message in messages or []:
-        course = match_course(message.get("sender", ""), cfg.courses)
-        if course is None:
-            continue  # not a teacher of yours; the inbox is full of those
-
-        # Everything above this line is free. Opening a message is not: it
-        # costs seconds and it marks the message read, so it happens only for
-        # one that is from a teacher AND has not been saved already.
+        sender = message.get("sender", "")
+        course = match_course(sender, cfg.courses)
         preview_key = (
             message.get("id")
-            or f"{message.get('sender')}\x1f{message.get('preview', '')[:60]}"
+            or f"{sender}\x1f{message.get('preview', '')[:60]}"
         )
-        if preview_key in known:
-            continue
+        is_new = preview_key not in seen and (not first_run or bool(message.get("unread")))
+        to_file = course is not None and preview_key not in known
 
+        # Everything above this line is free. Opening a message is not: it
+        # costs seconds and it marks the message read. So a teacher's message
+        # is opened once, to file it, when `open` allows teachers; anyone
+        # else's only when `open: all` and it is new. A message you had
+        # already read before this existed is never opened.
+        should_open = (to_file and mode in ("teachers", "all")) or (is_new and mode == "all")
         detail = {}
-        if full:
+        if should_open:
             try:
                 body, code = driver.read_mio_body(message.get("id", ""))
             except Exception as exc:  # noqa: BLE001 - one bad row, not the run
@@ -238,17 +397,35 @@ def sync_mio(cfg, driver, *, dry_run: bool = False, logger=None) -> list[dict]:
                 detail = parse_detail(body)
                 # The opened message names its own course, which beats matching
                 # a teacher's name against a sender string.
-                by_code = {c.code: c for c in cfg.courses}
-                course = by_code.get(code) or course
+                if course is not None:
+                    by_code = {c.code: c for c in cfg.courses}
+                    course = by_code.get(code) or course
         if detail.get("body"):
             subject = detail.get("subject") or ""
             body = detail["body"]
             date = detail_date(detail.get("date", "")) or message.get("date") or ""
         else:
             subject, body = split_subject(message.get("preview", ""))
-            date = message.get("date") or "" 
-        key = preview_key
+            date = message.get("date") or ""
 
+        if is_new and announce and not dry_run:
+            try:
+                # The inbox's name for the sender, which is what you will look
+                # for in Omnivox; the opened view appends the course to it.
+                _announce(
+                    cfg, sender, subject, body,
+                    staff=is_staff(sender, cfg), direct=bool(detail.get("direct")),
+                    log=log,
+                )
+            except Exception as exc:  # noqa: BLE001 - a notification never costs the run
+                log.warning("Could not announce a MIO: %s", exc)
+        if preview_key not in seen:
+            newly_seen.append({"key": preview_key, "sender": clean_sender(sender)[:60], "date": date})
+
+        if not to_file:
+            continue
+
+        key = preview_key
         name = f"{date} - {safe_name(subject)}.md" if date else f"{safe_name(subject)}.md"
         folder = cfg.folder_for(course) / cfg.mio_folder
         path = folder / name
@@ -258,7 +435,7 @@ def sync_mio(cfg, driver, *, dry_run: bool = False, logger=None) -> list[dict]:
             folder.mkdir(parents=True, exist_ok=True)
             path.write_text(
                 render(
-                    detail.get("sender") or message.get("sender", ""),
+                    detail.get("sender") or sender,
                     subject, date, body, course.code,
                     truncated=not detail.get("body"),
                 ),
@@ -275,4 +452,6 @@ def sync_mio(cfg, driver, *, dry_run: bool = False, logger=None) -> list[dict]:
 
     if fresh and not dry_run:
         store.write(store.read() + fresh)
+    if (newly_seen or first_run) and not dry_run:
+        seen_store.write(seen_store.read() + newly_seen)
     return queued

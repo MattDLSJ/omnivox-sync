@@ -101,6 +101,15 @@ class SchoolLocation:
         return bool(self.lat or self.lon)
 
 
+def _mio_open(raw) -> str:
+    """`mio: open:`, or what the older `full_bodies: true` meant."""
+    raw = raw or {}
+    mode = str(raw.get("open", "") or "").strip().lower()
+    if mode in ("never", "teachers", "all"):
+        return mode
+    return "teachers" if raw.get("full_bodies") else "never"
+
+
 def _school_locations(value) -> tuple[SchoolLocation, ...]:
     """`school_location:` as one mapping or a list of them.
 
@@ -183,6 +192,16 @@ class Config:
     # opening one marks it read, and a background job silently emptying
     # somebody's unread list is not a thing to do without being asked.
     mio_full_bodies: bool = False
+    #: Which messages the sync may open: "never", "teachers" (what full_bodies
+    #: meant) or "all". Opening is what marks a message read, so the default
+    #: never opens anything and a notification says it arrived instead.
+    mio_open: str = "never"
+    #: A notification for every new MIO, whatever it says and whoever sent it.
+    mio_notify: bool = True
+    #: Senders to treat as school staff besides your teachers and the college's
+    #: services, e.g. your counsellor at the CSA. Staff are the only ones whose
+    #: messages can be flagged as important.
+    mio_staff: tuple[str, ...] = ()
     # Install the scheduled job at the end of setup, so it runs by itself from
     # day one rather than after somebody reads a recommendation and acts on it.
     schedule_auto: bool = True
@@ -423,7 +442,14 @@ def load_config(config_path: Path, *, repo_root: Path | None = None) -> Config:
         ),
         mio_folder=str(raw.get("mio_folder", "5_MIO") or "5_MIO"),
         schedule_file=str(raw.get("schedule_file", "_schedule.md") or "_schedule.md"),
-        mio_full_bodies=bool((raw.get("mio") or {}).get("full_bodies", False)),
+        mio_full_bodies=_mio_open(raw.get("mio")) != "never",
+        mio_open=_mio_open(raw.get("mio")),
+        mio_notify=bool((raw.get("mio") or {}).get("notify", True)),
+        mio_staff=tuple(
+            str(name).strip()
+            for name in ((raw.get("mio") or {}).get("staff") or [])
+            if str(name).strip()
+        ),
         schedule_auto=bool((raw.get("schedule_settings") or raw.get("scheduling") or {}).get("auto", True)),
         adapted_services=bool(
             (raw.get("adapted_services") or {}).get("enabled", False)

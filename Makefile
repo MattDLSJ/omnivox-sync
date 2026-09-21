@@ -1,6 +1,6 @@
 PY := $(CURDIR)/.venv/bin/python
 
-.PHONY: books button capture-ip capture-location check-private discover doctor dry-run fetch-vad field-notes find-portal ics install-hooks install-launchd install-live install-manual install-recorder install-retry invite login mic-test mirror public-snapshot publish record-now recorder-status report send-report settings setup setup-cheneliere setup-gemini setup-ics setup-mic setup-omnivox shortcuts sound-check sync test test-unit uninstall-launchd uninstall-live uninstall-manual uninstall-recorder uninstall-retry update upload venv
+.PHONY: books button setup-phone capture-ip capture-location check-private discover doctor dry-run fetch-vad field-notes find-portal ics install-hooks install-launchd install-live install-manual install-recorder install-retry invite login mic-test mirror public-snapshot publish record-now recorder-status report send-report settings setup setup-cheneliere setup-gemini setup-ics setup-mic setup-omnivox shortcuts sound-check sync test test-unit uninstall-launchd uninstall-live uninstall-manual uninstall-recorder uninstall-retry update upload venv
 
 venv:
 	python3 -m venv .venv
@@ -208,6 +208,12 @@ books:
 setup-cheneliere:
 	@$(PY) scripts/set_env.py CHENELIERE_USER
 	@$(PY) scripts/set_env.py CHENELIERE_PASS
+
+# Notifications on your phone through ntfy.sh: picks a random topic, saves it
+# in .env, tells you what to type in the app, and sends a test. NEW=1 replaces
+# the topic, which is also how to lock out anyone who learned the old one.
+setup-phone:
+	@$(PY) scripts/setup_phone.py $(if $(NEW),--new,)
 
 setup-gemini:
 	@$(PY) scripts/set_env.py GEMINI_API_KEY

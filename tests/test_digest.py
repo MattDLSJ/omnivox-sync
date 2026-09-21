@@ -195,7 +195,9 @@ def test_append_digest_appends_rather_than_overwrites(tmp_path):
 
 def test_run_digest_records_and_then_stays_silent(loaded_config):
     cfg = loaded_config
-    obs = [{"kind": "mio", "title": "Examen mardi", "detail": "Prof X", "date": "2026-09-03"}]
+    # Not a MIO: those ring on their own and are left out of the summary.
+    obs = [{"kind": "quoi_de_neuf", "title": "Examen mardi", "detail": "Prof X",
+            "date": "2026-09-03"}]
     first = run_digest(cfg, obs)
     assert len(first.items) == 1
     assert first.important and first.notification is not None
@@ -308,3 +310,27 @@ def test_run_digest_notification_is_readable(loaded_config):
     result = run_digest(loaded_config, [], R())
     title, _ = result.notification
     assert "601-101-MQ" not in title
+
+
+def test_the_summary_leaves_mio_to_their_own_notifications(loaded_config):
+    """Each new MIO now rings on its own. Counting them again in the summary
+    notification, and quoting one as its headline, is the same message twice."""
+    observations = [
+        {"kind": "mio", "title": "Examen reporté", "detail": "Prof", "date": ""},
+        {"kind": "quoi_de_neuf", "title": "1 nouveau document", "detail": "", "date": ""},
+    ]
+    note = run_digest(loaded_config, observations, dry_run=True).notification
+    assert note is not None
+    assert "MIO" not in note[0] and "Examen reporté" not in note[1]
+
+
+def test_with_mio_notifications_off_the_summary_still_counts_them(loaded_config):
+    object.__setattr__(loaded_config, "mio_notify", False)
+    observations = [{"kind": "mio", "title": "Devoir", "detail": "Prof", "date": ""}]
+    note = run_digest(loaded_config, observations, dry_run=True).notification
+    assert "1 MIO" in note[0]
+
+
+def test_a_summary_of_nothing_but_mio_is_silent(loaded_config):
+    observations = [{"kind": "mio", "title": "Devoir", "detail": "Prof", "date": ""}]
+    assert run_digest(loaded_config, observations, dry_run=True).notification is None

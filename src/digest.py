@@ -399,7 +399,13 @@ def run_digest(
 
     result.items = fresh
     result.important = [i for i in fresh if i.important]
-    result.notification = format_notification(fresh, cfg.labels())
+    # Each new MIO rings on its own now (src/mio.py), so the summary leaves
+    # them out rather than counting and quoting the same message a second
+    # time. They are still written to the digest file below.
+    summarised = fresh
+    if getattr(cfg, "mio_notify", False):
+        summarised = [i for i in fresh if i.kind != "mio"]
+    result.notification = format_notification(summarised, cfg.labels())
 
     if dry_run:
         log.info("[dry-run] digest would report: %s", result.summary())

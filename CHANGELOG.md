@@ -3,6 +3,10 @@
 Every released version of this project, newest first. Written by hand
 at publish time; the development history it comes from is private.
 
+## v56 (2026-09-21)
+
+Every new MIO now gets its own notification. By default nothing is opened, so it stays unread in Omnivox for you to read. Set mio: open: all (or teachers) in config.yaml and the sync reads them too, on your computer with fixed rules and no AI, and rings louder for the ones from school staff that carry a deadline, an evaluation, a change to a class, or are written to you personally, quoting the sentence that matters. New: make setup-phone sets up notifications on your phone in one step.
+
 ## v55 (2026-09-18)
 
 Replaced the example coordinates in config.example.yaml and the tests with invented ones, and the example now says to take each building's reading inside that building. No change to how anything works.
