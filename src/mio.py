@@ -311,9 +311,15 @@ def assess(subject: str, body: str, *, staff: bool, direct: bool) -> Importance:
     )
 
     excerpt = ""
+    sentences = _sentences(body)
     for rule in (_CHANGE, _EVALUATION, _DEADLINE, _ACTION):
-        excerpt = next((s for s in _sentences(body) if rule.search(_plain(s))), "")
-        if excerpt:
+        at = next((n for n, s in enumerate(sentences) if rule.search(_plain(s))), None)
+        if at is not None:
+            excerpt = sentences[at]
+            # "Voici la liste :" is only worth quoting with the list after it.
+            if excerpt.endswith(":"):
+                items = [s.lstrip("-•* ").strip() for s in sentences[at + 1:at + 4]]
+                excerpt = f"{excerpt} {' ; '.join(i for i in items if i)}"
             break
     if not excerpt:
         opening = [s for s in _sentences(body) if not _plain(s).startswith(("bonjour", "bonsoir", "salut"))]

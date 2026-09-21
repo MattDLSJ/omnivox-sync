@@ -524,3 +524,15 @@ def test_a_reminder_that_a_help_desk_is_open_today_is_not_an_alarm():
                      "Bonjour, Ceci est un message de rappel. Nous vous offrons une période de disponibilité.",
                      staff=True, direct=False)
     assert not verdict.important
+
+
+def test_a_sentence_that_introduces_a_list_brings_the_list_with_it():
+    """The real alert read "Un rappel de la liste des documents autorisés en
+    version imprimée :" and stopped, which is the one message where the list
+    was the whole point."""
+    body = ("Très cher·es étudiant·es\n\nUn rappel de la liste des documents autorisés "
+            "en version imprimée :\n\n-  Vos 3 sources annotées\n\n-  Votre plan de rédaction\n\n"
+            "-  Le manuel\n\nBonne préparation")
+    verdict = assess("Quali : documents autorisés pour jeudi", body, staff=True, direct=False)
+    assert "Vos 3 sources annotées" in verdict.excerpt
+    assert "Votre plan de rédaction" in verdict.excerpt
